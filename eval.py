@@ -2,10 +2,10 @@ import logging
 import numpy as np
 import torch
 
-from metrics import CorefEvaluator, MentionEvaluator, CorefCategories
+from metrics import CorefEvaluator, MentionEvaluator
 from util import create_clusters, create_mention_to_antecedent, update_metrics, \
     output_evaluation_metrics, write_prediction_to_jsonlines
-from tqdm import tqdm
+from tqdm.auto import tqdm
 
 logger = logging.getLogger(__name__)
 
@@ -24,7 +24,7 @@ class Evaluator:
         logger.info(f"  Examples number: {len(self.eval_dataloader.dataset)}")
 
         metrics_dict = {'loss': 0., 'post_pruning': MentionEvaluator(), 'mentions': MentionEvaluator(),
-                        'coref': CorefEvaluator(), 'coref_categories': CorefCategories()}
+                        'coref': CorefEvaluator()}
         doc_to_tokens = {}
         doc_to_subtoken_map = {}
         doc_to_new_word_map = {}
@@ -47,9 +47,8 @@ class Evaluator:
                 if gold_clusters is not None:
                     evaluation = True
                     gold_clusters = gold_clusters.cpu().numpy()
-                    loss, span_starts, span_ends, coref_logits, categories_labels, clusters_labels = outputs_np
+                    loss, span_starts, span_ends, coref_logits = outputs_np
                     metrics_dict['loss'] += loss.item()
-                    metrics_dict['coref_categories'].update(coref_logits, categories_labels, clusters_labels)
                 else:
                     span_starts, span_ends, coref_logits = outputs_np
 

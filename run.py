@@ -7,7 +7,7 @@ import torch
 from transformers import AutoConfig, AutoTokenizer
 
 from consts import SUPPORTED_MODELS
-from modeling_lingmess import LingMessCoref as coref_model
+from modeling import FastCoref as COREF_CLASS
 # from modeling_s2e import S2E as coref_model # if you want to run the baseline
 from training import train
 from eval import Evaluator
@@ -53,7 +53,7 @@ def main():
     tokenizer = AutoTokenizer.from_pretrained(args.model_name_or_path, use_fast=True,
                                               add_prefix_space=True, cache_dir=args.cache_dir)
 
-    model, loading_info = coref_model.from_pretrained(
+    model, loading_info = COREF_CLASS.from_pretrained(
         args.model_name_or_path, output_loading_info=True,
         config=config, cache_dir=args.cache_dir, args=args
     )
@@ -76,19 +76,12 @@ def main():
     )
     args.dataset_files = dataset_files
 
-    if args.base_model == 'longformer':
-        collator = LongformerCollator(tokenizer=tokenizer, device=args.device)
-        max_doc_len = 4096
-    else:
-        collator = SegmentCollator(tokenizer=tokenizer, device=args.device, max_segment_len=args.max_segment_len)
-        max_doc_len = None
-
+    collator = SegmentCollator(tokenizer=tokenizer, device=args.device, max_segment_len=args.max_segment_len)
     eval_dataloader = DynamicBatchSampler(
         dataset[args.eval_split],
         collator=collator,
         max_tokens=args.max_tokens_in_batch,
         max_segment_len=args.max_segment_len,
-        max_doc_len=max_doc_len
     )
     evaluator = Evaluator(args=args, eval_dataloader=eval_dataloader)
 
@@ -99,7 +92,6 @@ def main():
             collator=collator,
             max_tokens=args.max_tokens_in_batch,
             max_segment_len=args.max_segment_len,
-            max_doc_len=max_doc_len
         )
         train_batches = coref_dataset.create_batches(sampler=train_sampler).shuffle(seed=args.seed)
         logger.info(train_batches)

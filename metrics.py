@@ -2,45 +2,11 @@ import numpy as np
 from collections import Counter
 from scipy.optimize import linear_sum_assignment
 
-from consts import CATEGORIES
-
 
 def f1(p_num, p_den, r_num, r_den, beta=1):
     p = 0 if p_den == 0 else p_num / float(p_den)
     r = 0 if r_den == 0 else r_num / float(r_den)
     return 0 if p + r == 0 else (1 + beta * beta) * p * r / (beta * beta * p + r)
-
-
-class CorefCategories:
-    def __init__(self):
-        self.categories = {cat_name: {'tp': 0, 'fp': 0, 'fn': 0, 'tn': 0} for cat_name in CATEGORIES}
-
-    def update(self, coref_logits, categories_labels, clusters_labels):
-        for cat_name, cat_id in CATEGORIES.items():
-            cat_mask = categories_labels == cat_id
-
-            labels = clusters_labels[cat_mask]
-            logits = coref_logits[:, :, :-1][cat_mask]          # without null cluster logit
-
-            self.categories[cat_name]['tn'] += np.logical_and(labels == 0., logits < 0).sum()
-            self.categories[cat_name]['fn'] += np.logical_and(labels == 1., logits < 0).sum()
-            self.categories[cat_name]['fp'] += np.logical_and(labels == 0., logits > 0).sum()
-            self.categories[cat_name]['tp'] += np.logical_and(labels == 1., logits > 0).sum()
-
-    def get_stats(self):
-        stats = {}
-        for cat_name in self.categories:
-            tp, fp = self.categories[cat_name]['tp'], self.categories[cat_name]['fp']
-            fn, tn = self.categories[cat_name]['fn'], self.categories[cat_name]['tn']
-
-            stats[cat_name] = {'true_pairs': tp + fn, 'false_pairs': tn + fp, 'precision': 0, 'recall': 0, 'f1': 0}
-            if tp + fp:
-                stats[cat_name]['precision'] = round((tp / (tp + fp)) * 100, 1)
-            if tp + fn:
-                stats[cat_name]['recall'] = round((tp / (tp + fn)) * 100, 1)
-            if tp + 0.5 * (fp + fn):
-                stats[cat_name]['f1'] = round((tp / (tp + 0.5 * (fp + fn))) * 100, 1)
-        return stats
 
 
 class MentionEvaluator:
