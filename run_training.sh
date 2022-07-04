@@ -1,0 +1,18 @@
+python run.py \
+      --output_dir=lingmess-longformer-final-model-dgx02 \
+      --overwrite_output_dir \
+      --model_name_or_path=allenai/longformer-large-4096 \
+      --train_file=prepare_ontonotes/train.english.jsonlines \
+      --dev_file=prepare_ontonotes/dev.english.jsonlines \
+      --test_file=prepare_ontonotes/test.english.jsonlines \
+      --max_tokens_in_batch=5000 \
+      --do_train \
+      --eval_split=dev \
+      --logging_steps=500 \
+      --eval_steps=1000 \
+      --train_epochs=129 \
+      --head_learning_rate=3e-4 \
+      --learning_rate=1e-5 \
+      --ffnn_size=2048 \
+      --experiment_name="lingmess" \
+      --device=cuda:3
