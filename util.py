@@ -8,8 +8,7 @@ import random
 import pandas as pd
 import torch
 import numpy as np
-from consts import NULL_ID_FOR_COREF
-
+from consts import NULL_ID_FOR_COREF, CATEGORIES, PRONOUNS_GROUPS
 
 logger = logging.getLogger(__name__)
 nlp = None
@@ -244,3 +243,33 @@ def mask_tensor(t, mask):
     t = t + ((1.0 - mask.float()) * -10000.0)
     t = torch.clamp(t, min=-10000.0, max=10000.0)
     return t
+
+def get_pronoun_id(span):
+    if len(span) == 1:
+        span = list(span)
+        if span[0] in PRONOUNS_GROUPS:
+            return PRONOUNS_GROUPS[span[0]]
+    return -1
+
+
+def get_category_id(mention, antecedent):
+    mention, mention_pronoun_id = mention
+    antecedent, antecedent_pronoun_id = antecedent
+
+    if mention_pronoun_id > -1 and antecedent_pronoun_id > -1:
+        if mention_pronoun_id == antecedent_pronoun_id:
+            return CATEGORIES['pron-pron-comp']
+        else:
+            return CATEGORIES['pron-pron-no-comp']
+
+    if mention_pronoun_id > -1 or antecedent_pronoun_id > -1:
+        return CATEGORIES['pron-ent']
+
+    if mention == antecedent:
+        return CATEGORIES['match']
+
+    union = mention.union(antecedent)
+    if len(union) == max(len(mention), len(antecedent)):
+        return CATEGORIES['contain']
+
+    return CATEGORIES['other']
