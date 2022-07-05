@@ -1,14 +1,15 @@
 import torch
+from torch.utils.data import DataLoader
 from transformers import AutoTokenizer
 from tqdm import tqdm
 
 import coref_dataset
 from collate import SegmentCollator, DynamicBatchSampler
 
-tokenizer = AutoTokenizer.from_pretrained('bert-base-cased', cache_dir='cache')
+tokenizer = AutoTokenizer.from_pretrained('distilroberta-base', cache_dir='cache', use_fast=True, add_prefix_space=True)
 dataset, dataset_files = coref_dataset.create(
         tokenizer=tokenizer,
-        train_file='prepare_ontonotes/train.english.jsonlines'
+        train_file='/home/nlp/shon711/lingmess-coref/prepare_ontonotes/train.english.jsonlines'
 )
 device = torch.device('cpu')
 
@@ -16,9 +17,8 @@ collator = SegmentCollator(tokenizer=tokenizer, device=device, max_segment_len=5
 sampler = DynamicBatchSampler(
     dataset['train'],
     collator=collator,
-    max_tokens=5000,
+    max_tokens=20000,
     max_segment_len=512,
-    max_doc_len=None
 )
 
 total_batches_dynamic = 0
@@ -39,9 +39,9 @@ for batch in tqdm(sampler):
         total_tokens_dynamic += input_ids.numel()
         padding_tokens_dynamic += input_ids[input_ids == tokenizer.pad_token_id].numel()
 
-print(f"Total Examples   : {len(sampler.dataset)}") # Seeing the tqdm stats.
-print(f"Total Batches    : {total_batches_dynamic}") # Seeing the tqdm stats.
-print(f"Total Leftovers  : {total_leftover_batches_dynamic}") # Seeing the tqdm stats.
+print(f"Total Examples   : {len(sampler.dataset)}")             # Seeing the tqdm stats.
+print(f"Total Batches    : {total_batches_dynamic}")            # Seeing the tqdm stats.
+print(f"Total Leftovers  : {total_leftover_batches_dynamic}")   # Seeing the tqdm stats.
 print(f"Padding Tokens   : {padding_tokens_dynamic}")
 print(f"Input Tokens     : {total_tokens_dynamic - padding_tokens_dynamic}")
 print(f"Total Tokens     : {total_tokens_dynamic}")
