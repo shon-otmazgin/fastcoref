@@ -9,10 +9,10 @@ python run_distil.py \
       --do_train \
       --eval_split=dev \
       --logging_steps=500 \
-      --eval_steps=500 \
+      --eval_steps=1000 \
       --train_epochs=129 \
       --head_learning_rate=3e-4 \
       --learning_rate=1e-5 \
-      --ffnn_size=2048 \
+      --ffnn_size=3072 \
       --experiment_name="fastcoref" \
-      --device=cuda:4
+      --device=cuda:1

@@ -273,3 +273,17 @@ def get_category_id(mention, antecedent):
         return CATEGORIES['contain']
 
     return CATEGORIES['other']
+
+
+def softXEnt(input, target, span_mask, T=1):
+    logprobs = torch.log_softmax(input / T, dim=-1)
+    target = torch.softmax(target / T, dim=-1)
+    losses = -(target * logprobs).sum(dim=-1)       # [batch_size, seq_len]
+
+    losses = losses * span_mask
+    per_example_loss = torch.sum(losses, dim=-1)    # [batch_size]
+
+    per_example_loss = per_example_loss / losses.size(-1)
+    loss = per_example_loss.mean()
+
+    return loss

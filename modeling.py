@@ -81,7 +81,7 @@ class FastCoref(BertPreTrainedModel):
         len_expanded = k.unsqueeze(1).expand(size)
         return (idx < len_expanded).int()
 
-    def _prune_topk_mentions(self, mention_logits, attention_mask):
+    def _prune_topk_mentions(self, mention_logits, attention_mask, topk_1d_indices):
         """
         :param mention_logits: Shape [batch_size, seq_length, seq_length]
         :param attention_mask: [batch_size, seq_length]
@@ -94,7 +94,8 @@ class FastCoref(BertPreTrainedModel):
         k = (actual_seq_lengths * self.top_lambda).int()  # [batch_size]
         max_k = int(torch.max(k))  # This is the k for the largest input in the batch, we will need to pad
 
-        _, topk_1d_indices = torch.topk(mention_logits.view(batch_size, -1), dim=-1, k=max_k)  # [batch_size, max_k]
+        if topk_1d_indices is None:
+            _, topk_1d_indices = torch.topk(mention_logits.view(batch_size, -1), dim=-1, k=max_k)  # [batch_size, max_k]
 
         span_mask = self._get_span_mask(batch_size, k, max_k)  # [batch_size, max_k]
         # drop the invalid indices and set them to the last index
@@ -244,7 +245,7 @@ class FastCoref(BertPreTrainedModel):
 
         return sequence_output, attention_mask
 
-    def forward(self, batch, gold_clusters=None, return_all_outputs=False):
+    def forward(self, batch, topk_1d_indices=None, gold_clusters=None, return_all_outputs=False):
         sequence_output, attention_mask = self.forward_transformer(batch)
 
         # Compute representations
@@ -258,7 +259,9 @@ class FastCoref(BertPreTrainedModel):
         mention_logits = self._calc_mention_logits(start_mention_reps, end_mention_reps)
 
         # prune mentions
-        mention_start_ids, mention_end_ids, span_mask, topk_mention_logits = self._prune_topk_mentions(mention_logits, attention_mask)
+        mention_start_ids, mention_end_ids, span_mask, topk_mention_logits = self._prune_topk_mentions(
+            mention_logits, attention_mask, topk_1d_indices
+        )
 
         batch_size, _, dim = start_coref_reps.size()
         max_k = mention_start_ids.size(-1)
@@ -276,7 +279,7 @@ class FastCoref(BertPreTrainedModel):
         final_logits = torch.cat((final_logits, torch.zeros((batch_size, max_k, 1), device=self.device)), dim=-1)  # [batch_size, max_k, max_k + 1]
 
         if return_all_outputs:
-            outputs = (mention_start_ids, mention_end_ids, final_logits)
+            outputs = (mention_start_ids, mention_end_ids, mention_logits, coref_logits, final_logits, topk_start_coref_reps, topk_end_coref_reps)
         else:
             outputs = tuple()
 

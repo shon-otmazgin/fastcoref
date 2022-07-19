@@ -52,6 +52,9 @@ def train(args, student_train_batches, teacher_train_batches, student, teacher, 
     global_step, tr_loss, logging_loss = 0, 0.0, 0.0
     best_f1, best_global_step = -1, -1
 
+    mse_loss = torch.nn.MSELoss()
+    cos_loss = torch.nn.CosineEmbeddingLoss()
+
     train_iterator = tqdm(range(int(args.train_epochs)), desc="Epoch")
     for _ in train_iterator:
         epoch_iterator = tqdm(list(zip(student_train_batches, teacher_train_batches)), desc="Iteration")
@@ -75,12 +78,22 @@ def train(args, student_train_batches, teacher_train_batches, student, teacher, 
 
             with torch.no_grad():
                 outputs = teacher(teacher_batch, gold_clusters=None, return_all_outputs=True)
-                mention_start_ids, mention_end_ids, final_logits = outputs
+                t_topk_1d_indices, _, _, t_mention_logits, t_coref_logits, _, t_topk_start_coref_reps, t_topk_end_coref_reps = outputs
+                t_topk_start_coref_reps = t_topk_start_coref_reps.view(-1, args.ffnn_size)
+                t_topk_end_coref_reps = t_topk_end_coref_reps.view(-1, args.ffnn_size)
 
             with torch.cuda.amp.autocast():
-                outputs = student(student_batch, gold_clusters=student_batch['gold_clusters'], return_all_outputs=False)
+                outputs = student(student_batch, topk_1d_indices=t_topk_1d_indices, gold_clusters=None, return_all_outputs=True)
+                _, _, s_mention_logits, s_coref_logits, _, s_topk_start_coref_reps, s_topk_end_coref_reps = outputs
+                s_topk_start_coref_reps = s_topk_start_coref_reps.view(-1, args.ffnn_size)
+                s_topk_end_coref_reps = s_topk_end_coref_reps.view(-1, args.ffnn_size)
 
-            loss = outputs[0]  # model outputs are always tuple in transformers (see doc)
+                mention_loss = mse_loss(s_mention_logits, t_mention_logits)
+                coref_start_reps_loss = cos_loss(s_topk_start_coref_reps, t_topk_start_coref_reps, torch.ones(s_topk_start_coref_reps.shape[0], device=args.device))
+                coref_end_reps_loss = cos_loss(s_topk_end_coref_reps, t_topk_end_coref_reps, torch.ones(s_topk_end_coref_reps.shape[0], device=args.device))
+                antecedent_loss = mse_loss(s_coref_logits, t_coref_logits)
+
+                loss = mention_loss + coref_start_reps_loss + coref_end_reps_loss + antecedent_loss
 
             tr_loss += loss.item()
             scaler.scale(loss).backward()

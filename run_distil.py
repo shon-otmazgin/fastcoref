@@ -9,6 +9,7 @@ from transformers import AutoConfig, AutoTokenizer
 from consts import SUPPORTED_MODELS
 from modeling import FastCoref
 from modeling_lingmess import LingMessCoref
+from modeling_s2e import S2E
 # from modeling_s2e import S2E as coref_model # if you want to run the baseline
 from training_distil import train
 from eval import Evaluator
@@ -75,7 +76,8 @@ def main():
                                               add_prefix_space=True, cache_dir=args.cache_dir)
 
     student = get_model(args.model_name_or_path, FastCoref, args)
-    teacher = get_model('biu-nlp/lingmess-coref', LingMessCoref, args)
+    # teacher = get_model('biu-nlp/lingmess-coref', LingMessCoref, args)
+    teacher = get_model('/home/nlp/shon711/fastcoref/trained_longformer', S2E, args)
 
     # load datasets
     dataset, dataset_files = coref_dataset.create(

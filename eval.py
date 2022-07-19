@@ -47,10 +47,10 @@ class Evaluator:
                 if gold_clusters is not None:
                     evaluation = True
                     gold_clusters = gold_clusters.cpu().numpy()
-                    loss, span_starts, span_ends, coref_logits = outputs_np
+                    loss, span_starts, span_ends, _, _, coref_logits, _, _ = outputs_np
                     metrics_dict['loss'] += loss.item()
                 else:
-                    span_starts, span_ends, coref_logits = outputs_np
+                    span_starts, span_ends, _, _, coref_logits, _, _ = outputs_np
 
                 doc_indices, mention_to_antecedent = create_mention_to_antecedent(span_starts, span_ends, coref_logits)
 
