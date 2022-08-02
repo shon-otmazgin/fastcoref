@@ -1,10 +1,9 @@
 import torch
-from torch.utils.data import DataLoader
 from transformers import AutoTokenizer
 from tqdm import tqdm
 
-import coref_dataset
-from collate import SegmentCollator, DynamicBatchSampler
+from utilities import coref_dataset
+from utilities.collate import SegmentCollator, DynamicBatchSampler
 
 tokenizer = AutoTokenizer.from_pretrained('distilroberta-base', cache_dir='cache', use_fast=True, add_prefix_space=True)
 dataset, dataset_files = coref_dataset.create(

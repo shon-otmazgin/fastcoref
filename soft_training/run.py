@@ -2,20 +2,19 @@ import logging
 import os
 import shutil
 
-import coref_dataset
+from utilities import coref_dataset
 import torch
 from transformers import AutoConfig, AutoTokenizer
 
-from consts import SUPPORTED_MODELS
-from modeling import FastCoref
-from modeling_lingmess import LingMessCoref
-from modeling_s2e import S2E
+from utilities.consts import SUPPORTED_MODELS
+from models.modeling import FastCoref
+from models.modeling_s2e import S2E
 # from modeling_s2e import S2E as coref_model # if you want to run the baseline
-from training_distil import train
-from eval import Evaluator
-from util import set_seed
-from cli import parse_args
-from collate import LongformerCollator, DynamicBatchSampler, SegmentCollator
+from soft_training.training import train
+from utilities.eval import Evaluator
+from utilities.util import set_seed
+from utilities.cli import parse_args
+from utilities.collate import LongformerCollator, DynamicBatchSampler, SegmentCollator
 import wandb
 
 # Setup logging

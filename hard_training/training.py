@@ -4,7 +4,7 @@ import logging
 import torch
 from tqdm import tqdm
 from transformers import AdamW, get_linear_schedule_with_warmup
-from util import save_all
+from utilities.util import save_all
 import wandb
 
 logger = logging.getLogger(__name__)

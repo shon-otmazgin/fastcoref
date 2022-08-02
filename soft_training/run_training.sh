@@ -1,5 +1,5 @@
 python run_distil.py \
-      --output_dir=fastcoref-ontonotes-only \
+      --output_dir=fastcoref-ontonotes-only-2 \
       --overwrite_output_dir \
       --model_name_or_path=distilroberta-base \
       --train_file=/home/nlp/shon711/lingmess-coref/prepare_ontonotes/train.english.jsonlines \

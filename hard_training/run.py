@@ -1,19 +1,27 @@
+# import sys
+# from pathlib import Path
+#
+# # setting parent path
+# sys.path.append(str(Path(__file__).parent.parent))
+
+import sys
+sys.path.append('/home/nlp/shon711/fast-coref')
+
 import logging
 import os
 import shutil
 
-import coref_dataset
 import torch
 from transformers import AutoConfig, AutoTokenizer
 
-from consts import SUPPORTED_MODELS
-from modeling import FastCoref as COREF_CLASS
-# from modeling_s2e import S2E as coref_model # if you want to run the baseline
+from models.modeling import FastCoref as COREF_CLASS
 from training import train
-from eval import Evaluator
-from util import set_seed
-from cli import parse_args
-from collate import LongformerCollator, DynamicBatchSampler, SegmentCollator
+from utilities import coref_dataset
+from utilities.eval import Evaluator
+from utilities.util import set_seed
+from utilities.cli import parse_args
+from utilities.collate import DynamicBatchSampler, SegmentCollator
+from utilities.consts import SUPPORTED_MODELS
 import wandb
 
 # Setup logging
@@ -50,8 +58,7 @@ def main():
     set_seed(args)
 
     config = AutoConfig.from_pretrained(args.model_name_or_path, cache_dir=args.cache_dir)
-    tokenizer = AutoTokenizer.from_pretrained(args.model_name_or_path, use_fast=True,
-                                              add_prefix_space=True, cache_dir=args.cache_dir)
+    tokenizer = AutoTokenizer.from_pretrained(args.model_name_or_path, use_fast=True, add_prefix_space=True, cache_dir=args.cache_dir)
 
     model, loading_info = COREF_CLASS.from_pretrained(
         args.model_name_or_path, output_loading_info=True,
@@ -72,7 +79,8 @@ def main():
     # load datasets
     dataset, dataset_files = coref_dataset.create(
         tokenizer=tokenizer,
-        train_file=args.train_file, dev_file=args.dev_file, test_file=args.test_file
+        train_file=args.train_file, dev_file=args.dev_file, test_file=args.test_file,
+        cache_dir=args.cache_dir
     )
     args.dataset_files = dataset_files
 

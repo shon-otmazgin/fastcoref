@@ -4,7 +4,10 @@ from torch.nn import Module, Linear, LayerNorm, Dropout
 from transformers import BertPreTrainedModel, AutoModel
 from transformers.activations import ACT2FN
 
-from util import extract_clusters, extract_mentions_to_clusters, mask_tensor
+from utilities.util import extract_clusters, extract_mentions_to_clusters, mask_tensor
+
+from utilities.consts import STOPWORDS
+from utilities.util import get_pronoun_id, get_category_id
 
 # took from: https://github.com/yuvalkirstain/s2e-coref
 
@@ -30,7 +33,7 @@ class FullyConnectedLayer(Module):
         return temp
 
 
-class FastCoref(BertPreTrainedModel):
+class S2E(BertPreTrainedModel):
     def __init__(self, config, args):
         super().__init__(config)
         self.max_span_length = args.max_span_length
@@ -40,8 +43,8 @@ class FastCoref(BertPreTrainedModel):
         self.ffnn_size = self.ffnn_size if self.do_mlps else config.hidden_size
 
         base_model = AutoModel.from_config(config)
-        FastCoref.base_model_prefix = base_model.base_model_prefix
-        FastCoref.config_class = base_model.config_class
+        S2E.base_model_prefix = base_model.base_model_prefix
+        S2E.config_class = base_model.config_class
         setattr(self, self.base_model_prefix, base_model)
 
         self.start_mention_mlp = FullyConnectedLayer(config, config.hidden_size, self.ffnn_size, args.dropout_prob) if self.do_mlps else None
@@ -81,7 +84,7 @@ class FastCoref(BertPreTrainedModel):
         len_expanded = k.unsqueeze(1).expand(size)
         return (idx < len_expanded).int()
 
-    def _prune_topk_mentions(self, mention_logits, attention_mask, topk_1d_indices):
+    def _prune_topk_mentions(self, mention_logits, attention_mask):
         """
         :param mention_logits: Shape [batch_size, seq_length, seq_length]
         :param attention_mask: [batch_size, seq_length]
@@ -94,8 +97,7 @@ class FastCoref(BertPreTrainedModel):
         k = (actual_seq_lengths * self.top_lambda).int()  # [batch_size]
         max_k = int(torch.max(k))  # This is the k for the largest input in the batch, we will need to pad
 
-        if topk_1d_indices is None:
-            _, topk_1d_indices = torch.topk(mention_logits.view(batch_size, -1), dim=-1, k=max_k)  # [batch_size, max_k]
+        _, topk_1d_indices = torch.topk(mention_logits.view(batch_size, -1), dim=-1, k=max_k)  # [batch_size, max_k]
 
         span_mask = self._get_span_mask(batch_size, k, max_k)  # [batch_size, max_k]
         # drop the invalid indices and set them to the last index
@@ -113,7 +115,7 @@ class FastCoref(BertPreTrainedModel):
         # this is antecedents scores - rows mentions, cols coref mentions
         topk_mention_logits = topk_mention_logits.unsqueeze(-1) + topk_mention_logits.unsqueeze(-2)  # [batch_size, max_k, max_k]
 
-        return topk_mention_start_ids, topk_mention_end_ids, span_mask, topk_mention_logits
+        return topk_1d_indices, topk_mention_start_ids, topk_mention_end_ids, span_mask, topk_mention_logits
 
     def _mask_antecedent_logits(self, antecedent_logits, span_mask):
         # We now build the matrix for each pair of spans (i,j) - whether j is a candidate for being antecedent of i?
@@ -218,35 +220,34 @@ class FastCoref(BertPreTrainedModel):
         coref_logits = top_k_s2e_coref_logits + top_k_e2s_coref_logits + top_k_s2s_coref_logits + top_k_e2e_coref_logits  # [batch_size, max_k, max_k]
         return coref_logits
 
-    def forward_transformer(self, batch):
-        input_ids = batch['input_ids']
-        attention_mask = batch['attention_mask']
+    def _get_categories_labels(self, tokens, subtoken_map, new_token_map, span_starts, span_ends):
+        batch_size, max_k = span_starts.size()
 
-        if 'leftovers' not in batch:
-            outputs = self.base_model(input_ids, attention_mask=attention_mask)
-            sequence_output = outputs.last_hidden_state
-        else:
-            docs, segments, segment_len = input_ids.size()
-            input_ids, attention_mask = input_ids.view(-1, segment_len), attention_mask.view(-1, segment_len)
+        spans = []
+        for b, (starts, ends) in enumerate(zip(span_starts.cpu().tolist(), span_ends.cpu().tolist())):
+            doc_spans = []
+            for start, end in zip(starts, ends):
+                token_indices = [new_token_map[b][idx] for idx in set(subtoken_map[b][start:end + 1]) - {None}]
+                span = {tokens[b][idx].lower() for idx in token_indices if idx is not None}
+                pronoun_id = get_pronoun_id(span)
+                doc_spans.append((span - STOPWORDS, pronoun_id))
+            spans.append(doc_spans)
 
-            outputs = self.base_model(input_ids, attention_mask=attention_mask)
-            sequence_output = outputs.last_hidden_state
+        categories_labels = np.zeros((batch_size, max_k, max_k)) - 1
+        for b in range(batch_size):
+            for i in range(max_k):
+                for j in list(range(max_k))[:i]:
+                    categories_labels[b, i, j] = get_category_id(spans[b][i], spans[b][j])
 
-            attention_mask = attention_mask.view((docs, segments * segment_len))        # [docs, seq_len]
-            sequence_output = sequence_output.view((docs, segments * segment_len, -1))  # [docs, seq_len, dim]
+        categories_labels = torch.tensor(categories_labels, device=self.device)
+        return categories_labels
 
-            leftovers_ids, leftovers_mask = batch['leftovers']['input_ids'], batch['leftovers']['attention_mask']
-            if len(leftovers_ids) > 0:
-                res_outputs = self.base_model(leftovers_ids, attention_mask=leftovers_mask)
-                res_sequence_output = res_outputs.last_hidden_state
+    def forward(self, batch, gold_clusters=None, return_all_outputs=False):
+        input_ids, attention_mask = batch['input_ids'], batch['attention_mask']
+        tokens, subtoken_map, new_token_map = batch['tokens'], batch['subtoken_map'], batch['new_token_map']
 
-                attention_mask = torch.cat([attention_mask, leftovers_mask], dim=1)
-                sequence_output = torch.cat([sequence_output, res_sequence_output], dim=1)
-
-        return sequence_output, attention_mask
-
-    def forward(self, batch, topk_1d_indices=None, gold_clusters=None, return_all_outputs=False):
-        sequence_output, attention_mask = self.forward_transformer(batch)
+        outputs = self.base_model(input_ids, attention_mask=attention_mask)
+        sequence_output = outputs.last_hidden_state
 
         # Compute representations
         start_mention_reps = self.start_mention_mlp(sequence_output) if self.do_mlps else sequence_output
@@ -259,9 +260,7 @@ class FastCoref(BertPreTrainedModel):
         mention_logits = self._calc_mention_logits(start_mention_reps, end_mention_reps)
 
         # prune mentions
-        mention_start_ids, mention_end_ids, span_mask, topk_mention_logits = self._prune_topk_mentions(
-            mention_logits, attention_mask, topk_1d_indices
-        )
+        topk_1d_indices, mention_start_ids, mention_end_ids, span_mask, topk_mention_logits = self._prune_topk_mentions(mention_logits, attention_mask)
 
         batch_size, _, dim = start_coref_reps.size()
         max_k = mention_start_ids.size(-1)
@@ -279,14 +278,17 @@ class FastCoref(BertPreTrainedModel):
         final_logits = torch.cat((final_logits, torch.zeros((batch_size, max_k, 1), device=self.device)), dim=-1)  # [batch_size, max_k, max_k + 1]
 
         if return_all_outputs:
-            outputs = (mention_start_ids, mention_end_ids, mention_logits, coref_logits, final_logits, topk_start_coref_reps, topk_end_coref_reps)
+            outputs = (topk_1d_indices, mention_start_ids, mention_end_ids, mention_logits, coref_logits, final_logits, topk_start_coref_reps, topk_end_coref_reps)
         else:
             outputs = tuple()
 
         if gold_clusters is not None:
             labels_after_pruning = self._get_cluster_labels_after_pruning(mention_start_ids, mention_end_ids, gold_clusters)
             loss = self._get_marginal_log_likelihood_loss(final_logits, labels_after_pruning, span_mask)
-            outputs = (loss, ) + outputs
+            categories_labels = self._get_categories_labels(
+                tokens, subtoken_map, new_token_map, mention_start_ids, mention_end_ids
+            )
+            outputs = (loss,) + outputs + (categories_labels, labels_after_pruning[:, :, :-1], )
 
         return outputs
 

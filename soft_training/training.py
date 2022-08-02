@@ -4,7 +4,7 @@ import logging
 import torch
 from tqdm import tqdm
 from transformers import AdamW, get_linear_schedule_with_warmup
-from util import save_all
+from utilities.util import save_all
 import wandb
 
 logger = logging.getLogger(__name__)
@@ -57,7 +57,7 @@ def train(args, student_train_batches, teacher_train_batches, student, teacher, 
 
     train_iterator = tqdm(range(int(args.train_epochs)), desc="Epoch")
     for _ in train_iterator:
-        epoch_iterator = tqdm(list(zip(student_train_batches, teacher_train_batches)), desc="Iteration")
+        epoch_iterator = tqdm(zip(student_train_batches, teacher_train_batches), desc="Iteration", total=len(student_train_batches))
         for step, (student_batch, teacher_batch) in enumerate(epoch_iterator):
             assert all([x == y for x, y in zip(student_batch['doc_key'], teacher_batch['doc_key'])]), 'different doc keys in the student-teacher batches'
 
@@ -78,20 +78,21 @@ def train(args, student_train_batches, teacher_train_batches, student, teacher, 
 
             with torch.no_grad():
                 outputs = teacher(teacher_batch, gold_clusters=None, return_all_outputs=True)
-                t_topk_1d_indices, _, _, t_mention_logits, t_coref_logits, _, t_topk_start_coref_reps, t_topk_end_coref_reps = outputs
+                t_topk_1d_indices, _, _, t_mention_logits, t_coref_logits, t_final_logits, t_topk_start_coref_reps, t_topk_end_coref_reps = outputs
                 t_topk_start_coref_reps = t_topk_start_coref_reps.view(-1, args.ffnn_size)
                 t_topk_end_coref_reps = t_topk_end_coref_reps.view(-1, args.ffnn_size)
 
             with torch.cuda.amp.autocast():
                 outputs = student(student_batch, topk_1d_indices=t_topk_1d_indices, gold_clusters=None, return_all_outputs=True)
-                _, _, s_mention_logits, s_coref_logits, _, s_topk_start_coref_reps, s_topk_end_coref_reps = outputs
+                _, _, s_mention_logits, s_coref_logits, s_final_logits, s_topk_start_coref_reps, s_topk_end_coref_reps = outputs
                 s_topk_start_coref_reps = s_topk_start_coref_reps.view(-1, args.ffnn_size)
                 s_topk_end_coref_reps = s_topk_end_coref_reps.view(-1, args.ffnn_size)
 
                 mention_loss = mse_loss(s_mention_logits, t_mention_logits)
                 coref_start_reps_loss = cos_loss(s_topk_start_coref_reps, t_topk_start_coref_reps, torch.ones(s_topk_start_coref_reps.shape[0], device=args.device))
                 coref_end_reps_loss = cos_loss(s_topk_end_coref_reps, t_topk_end_coref_reps, torch.ones(s_topk_end_coref_reps.shape[0], device=args.device))
-                antecedent_loss = mse_loss(s_coref_logits, t_coref_logits)
+                # antecedent_loss = mse_loss(s_coref_logits, t_coref_logits)
+                antecedent_loss = mse_loss(s_final_logits, t_final_logits)
 
                 loss = mention_loss + coref_start_reps_loss + coref_end_reps_loss + antecedent_loss
 
