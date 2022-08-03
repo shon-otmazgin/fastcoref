@@ -91,21 +91,27 @@ def create(tokenizer, train_file=None, dev_file=None, test_file=None, cache_dir=
     return dataset, dataset_files
 
 
-def create_batches(sampler, path_to_save=None):
-    logger.info(f'Creating batches for {len(sampler.dataset)} examples...')
+def create_batches(sampler, cache_dir='cache'):
+    cache_key = hashlib.md5(str.encode(sampler.dataset._fingerprint)).hexdigest()
+    dataset_path = os.path.join(cache_dir, cache_key)
 
-    # huggingface dataset cannot save tensors. so we will save lists and on train loop transform to tensors.
-    batches_dict = defaultdict(lambda: [])
+    try:
+        batches = datasets.load_from_disk(dataset_path)
+        logger.info(f'Batches restored from: {dataset_path}')
+    except FileNotFoundError:
+        logger.info(f'Creating batches for {len(sampler.dataset)} examples...')
 
-    for i, batch in enumerate(tqdm(sampler)):
-        for k, v in batch.items():
-            batches_dict[k].append(v)
+        # huggingface dataset cannot save tensors. so we will save lists and on train loop transform to tensors.
+        batches_dict = defaultdict(lambda: [])
 
-    batches = Dataset.from_dict(batches_dict)
-    logger.info(f'{len(batches)} batches created.')
+        for i, batch in enumerate(tqdm(sampler)):
+            for k, v in batch.items():
+                batches_dict[k].append(v)
 
-    if path_to_save is not None:
-        batches.save_to_disk(path_to_save)
-        logger.info(f'Saving batches to {path_to_save}')
+        batches = Dataset.from_dict(batches_dict)
+        logger.info(f'{len(batches)} batches created.')
+
+        logger.info(f'Saving batches to {dataset_path}')
+        batches.save_to_disk(dataset_path)
 
     return batches

@@ -101,7 +101,7 @@ def main():
             max_tokens=args.max_tokens_in_batch,
             max_segment_len=args.max_segment_len,
         )
-        train_batches = coref_dataset.create_batches(sampler=train_sampler).shuffle(seed=args.seed)
+        train_batches = coref_dataset.create_batches(sampler=train_sampler, cache_dir=args.cache_dir).shuffle(seed=args.seed)
         logger.info(train_batches)
 
         global_step, tr_loss = train(args, train_batches, model, tokenizer, evaluator)
