@@ -4,6 +4,7 @@ import os.path
 from collections import defaultdict
 
 import datasets
+from datasets.fingerprint import Hasher
 from datasets import Dataset, DatasetDict
 from tqdm import tqdm
 
@@ -65,7 +66,7 @@ def create(tokenizer, train_file=None, dev_file=None, test_file=None, cache_dir=
 
     dataset_files = {'train': train_file, 'dev': dev_file, 'test': test_file}
 
-    cache_key = hashlib.md5(str.encode(str(tuple((k, v) for k, v in dataset_files.items())))).hexdigest()
+    cache_key = Hasher.hash(dataset_files)
     dataset_path = os.path.join(cache_dir, cache_key)
 
     try:
@@ -84,17 +85,16 @@ def create(tokenizer, train_file=None, dev_file=None, test_file=None, cache_dir=
         logger.info(f'Tokenize documents...')
         dataset = dataset.map(encode, batched=False, fn_kwargs={'tokenizer': tokenizer})
         dataset = dataset.remove_columns(column_names=['speakers', 'clusters'])
-        if dataset_files['train']:
-            dataset['train']._fingerprint = cache_key
+        dataset['data_files'] = dataset_files
 
         logger.info(f'Saving dataset to {dataset_path}')
         dataset.save_to_disk(dataset_path)
 
-    return dataset, dataset_files
+    return dataset
 
 
 def create_batches(sampler, cache_dir='cache'):
-    cache_key = hashlib.md5(str.encode(sampler.dataset._fingerprint)).hexdigest()
+    cache_key = Hasher.hash(Hasher.hash(sampler.dataset['dataset_files']) + Hasher.hash(sampler.collator))
     dataset_path = os.path.join(cache_dir, cache_key)
 
     try:
