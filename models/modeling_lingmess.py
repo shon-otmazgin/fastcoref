@@ -6,8 +6,8 @@ from torch.nn import Module, Linear, LayerNorm, Dropout, init
 from transformers import BertPreTrainedModel, AutoModel
 from transformers.activations import ACT2FN
 
-from utilities.consts import CATEGORIES, STOPWORDS
-from utilities.util import extract_clusters, extract_mentions_to_clusters, mask_tensor, get_pronoun_id, get_category_id
+from consts import CATEGORIES, STOPWORDS
+from util import extract_clusters, extract_mentions_to_clusters, mask_tensor, get_pronoun_id, get_category_id
 
 
 class FullyConnectedLayer(Module):
@@ -135,7 +135,7 @@ class LingMessCoref(BertPreTrainedModel):
         # this is antecedents scores - rows mentions, cols coref mentions
         topk_mention_logits = topk_mention_logits.unsqueeze(-1) + topk_mention_logits.unsqueeze(-2)  # [batch_size, max_k, max_k]
 
-        return topk_1d_indices, topk_mention_start_ids, topk_mention_end_ids, span_mask, topk_mention_logits
+        return topk_mention_start_ids, topk_mention_end_ids, span_mask, topk_mention_logits, topk_1d_indices
 
     def _mask_antecedent_logits(self, antecedent_logits, span_mask, categories_masks=None):
         antecedents_mask = torch.ones_like(antecedent_logits, dtype=self.dtype).tril(diagonal=-1)
@@ -322,7 +322,7 @@ class LingMessCoref(BertPreTrainedModel):
         mention_logits = self._calc_mention_logits(start_mention_reps, end_mention_reps)
 
         # prune mentions
-        topk_1d_indices, mention_start_ids, mention_end_ids, span_mask, topk_mention_logits = self._prune_topk_mentions(mention_logits, attention_mask)
+        mention_start_ids, mention_end_ids, span_mask, topk_mention_logits, topk_1d_indices = self._prune_topk_mentions(mention_logits, attention_mask)
 
         categories_labels, categories_masks = self._get_categories_labels(
             tokens, subtoken_map, new_token_map, mention_start_ids, mention_end_ids
@@ -350,7 +350,7 @@ class LingMessCoref(BertPreTrainedModel):
         categories_logits = torch.cat((categories_logits, torch.zeros((batch_size, self.num_cats, max_k, 1), device=self.device)), dim=-1)  # [batch_size, num_cats, max_k, max_k + 1]
 
         if return_all_outputs:
-            outputs = (topk_1d_indices, mention_start_ids, mention_end_ids, mention_logits, final_logits)
+            outputs = (mention_start_ids, mention_end_ids, mention_logits, final_logits, topk_1d_indices)
         else:
             outputs = tuple()
 

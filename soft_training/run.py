@@ -1,3 +1,6 @@
+import sys
+sys.path.append('/home/nlp/shon711/fast-coref')
+
 import logging
 import os
 import shutil
@@ -9,7 +12,7 @@ from transformers import AutoConfig, AutoTokenizer
 from utilities.consts import SUPPORTED_MODELS
 from models.modeling import FastCoref
 from models.modeling_s2e import S2E
-# from modeling_s2e import S2E as coref_model # if you want to run the baseline
+from models.modeling_lingmess import LingMessCoref
 from soft_training.load_teacher.training import train
 from utilities.eval import Evaluator
 from utilities.util import set_seed
@@ -75,8 +78,12 @@ def main():
                                               add_prefix_space=True, cache_dir=args.cache_dir)
 
     student = get_model(args.model_name_or_path, FastCoref, args)
-    # teacher = get_model('biu-nlp/lingmess-coref', LingMessCoref, args)
-    teacher = get_model('/home/nlp/shon711/fastcoref/trained_longformer', S2E, args)
+
+    ffnn_size = args.ffnn_size
+    args.ffnn_size = 2048
+    teacher = get_model('biu-nlp/lingmess-coref', LingMessCoref, args)
+    # teacher = get_model('/home/nlp/shon711/fastcoref/trained_longformer', S2E, args)
+    args.ffnn_size = ffnn_size
 
     # load datasets
     dataset, dataset_files = coref_dataset.create(
