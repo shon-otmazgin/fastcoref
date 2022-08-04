@@ -10,6 +10,7 @@ from tqdm import tqdm
 
 import util
 import consts
+from utilities.collate import SegmentCollator, LongformerCollator
 
 logger = logging.getLogger(__name__)
 
@@ -93,7 +94,15 @@ def create(tokenizer, train_file=None, dev_file=None, test_file=None, cache_dir=
 
 
 def create_batches(sampler, dataset_files, cache_dir='cache'):
-    cache_key = Hasher.hash(Hasher.hash(dataset_files) + Hasher.hash(sampler.collator))
+    key = Hasher.hash(dataset_files)
+    if isinstance(sampler.collator, SegmentCollator):
+        key += '_segment_collator'
+    elif isinstance(sampler.collator, LongformerCollator):
+        key += '_longformer_collator'
+    else:
+        raise NotImplementedError('this collator not implemented!')
+
+    cache_key = Hasher.hash(key)
     dataset_path = os.path.join(cache_dir, cache_key)
 
     try:

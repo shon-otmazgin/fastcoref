@@ -1,6 +1,8 @@
 import json
 import os
 import logging
+
+import numpy as np
 import torch
 from tqdm import tqdm
 from transformers import AdamW, get_linear_schedule_with_warmup
@@ -10,22 +12,21 @@ import wandb
 logger = logging.getLogger(__name__)
 
 
-def train(args, student_train_batches, teacher_train_batches, student, teacher, tokenizer, evaluator):
+def train(args, train_batches, model, tokenizer, evaluator):
     """ Train the model """
-    assert len(student_train_batches) == len(teacher_train_batches), 'student and teacher batches size are different'
-    t_total = len(student_train_batches) * args.train_epochs
+    t_total = len(train_batches) * args.train_epochs
 
     # Prepare optimizer and schedule (linear warmup and decay)
     no_decay = ['bias', 'LayerNorm.weight']
     head_params = ['coref', 'mention', 'antecedent']
 
-    model_decay = [p for n, p in student.named_parameters() if
+    model_decay = [p for n, p in model.named_parameters() if
                    not any(hp in n for hp in head_params) and not any(nd in n for nd in no_decay)]
-    model_no_decay = [p for n, p in student.named_parameters() if
+    model_no_decay = [p for n, p in model.named_parameters() if
                       not any(hp in n for hp in head_params) and any(nd in n for nd in no_decay)]
-    head_decay = [p for n, p in student.named_parameters() if
+    head_decay = [p for n, p in model.named_parameters() if
                   any(hp in n for hp in head_params) and not any(nd in n for nd in no_decay)]
-    head_no_decay = [p for n, p in student.named_parameters() if
+    head_no_decay = [p for n, p in model.named_parameters() if
                      any(hp in n for hp in head_params) and any(nd in n for nd in no_decay)]
 
     head_learning_rate = args.head_learning_rate if args.head_learning_rate else args.learning_rate
@@ -52,39 +53,31 @@ def train(args, student_train_batches, teacher_train_batches, student, teacher, 
     global_step, tr_loss, logging_loss = 0, 0.0, 0.0
     best_f1, best_global_step = -1, -1
 
-    mse_loss = torch.nn.MSELoss()
-    cos_loss = torch.nn.CosineEmbeddingLoss()
-
     train_iterator = tqdm(range(int(args.train_epochs)), desc="Epoch")
+    teacher_logits_dir = os.path.dirname(args.dataset_files['train'])
     for _ in train_iterator:
-        epoch_iterator = tqdm(zip(student_train_batches, teacher_train_batches), desc="Iteration", total=len(student_train_batches))
-        for step, (student_batch, teacher_batch) in enumerate(epoch_iterator):
-            assert all([x == y for x, y in zip(student_batch['doc_key'], teacher_batch['doc_key'])]), 'different doc keys in the student-teacher batches'
+        epoch_iterator = tqdm(train_batches, desc="Iteration")
+        for step, batch in enumerate(epoch_iterator):
+            batch['input_ids'] = torch.tensor(batch['input_ids'], device=args.device)
+            batch['attention_mask'] = torch.tensor(batch['attention_mask'], device=args.device)
+            if 'leftovers' in batch:
+                batch['leftovers']['input_ids'] = torch.tensor(batch['leftovers']['input_ids'], device=args.device)
+                batch['leftovers']['attention_mask'] = torch.tensor(batch['leftovers']['attention_mask'], device=args.device)
 
-            teacher_batch['input_ids'] = torch.tensor(teacher_batch['input_ids'], device=args.device)
-            teacher_batch['attention_mask'] = torch.tensor(teacher_batch['attention_mask'], device=args.device)
-            teacher_batch['gold_clusters'] = torch.tensor(teacher_batch['gold_clusters'], device=args.device)
-
-            student_batch['input_ids'] = torch.tensor(student_batch['input_ids'], device=args.device)
-            student_batch['attention_mask'] = torch.tensor(student_batch['attention_mask'], device=args.device)
-            student_batch['gold_clusters'] = torch.tensor(student_batch['gold_clusters'], device=args.device)
-            if 'leftovers' in student_batch:
-                student_batch['leftovers']['input_ids'] = torch.tensor(student_batch['leftovers']['input_ids'], device=args.device)
-                student_batch['leftovers']['attention_mask'] = torch.tensor(student_batch['leftovers']['attention_mask'], device=args.device)
-
-            student.zero_grad()
-            student.train()
-            teacher.eval()
-
-            with torch.no_grad():
-                outputs = teacher(teacher_batch, gold_clusters=None, return_all_outputs=True)
-                teacher_logits, topk_1d_indices = outputs[-2], outputs[-1]
+            keys = [doc_key.replace('/', '_') for doc_key in batch['doc_key']]
+            teacher_coref_logits = torch.from_numpy(np.stack([np.load(os.path.join(teacher_logits_dir, k + '_coref_logits.npy'))
+                                                              for k in keys], axis=0)).to(args.device)
+            topk_1d_indices = torch.from_numpy(np.stack([np.load(os.path.join(teacher_logits_dir, k + '_top_indices.npy'))
+                                                         for k in keys], axis=0)).to(args.device)
+            model.zero_grad()
+            model.train()
 
             with torch.cuda.amp.autocast():
-                outputs = student(student_batch, topk_1d_indices=t_topk_1d_indices, gold_clusters=None, return_all_outputs=True)
-                student_logits, span_mask = outputs[-1], outputs[0]
+                outputs = model(batch, topk_1d_indices=topk_1d_indices, return_all_outputs=True)
+                span_mask = outputs[0]
+                student_coref_logits = outputs[-1]
 
-            loss = softXEnt(teacher_logits=teacher_logits, student_logits=student_logits, span_mask=span_mask)
+            loss = softXEnt(teacher_logits=teacher_coref_logits, student_logits=student_coref_logits, span_mask=span_mask)
 
             tr_loss += loss.item()
             scaler.scale(loss).backward()
@@ -103,7 +96,7 @@ def train(args, student_train_batches, teacher_train_batches, student, teacher, 
 
             # Evaluation
             if global_step % args.eval_steps == 0:
-                results = evaluator.evaluate(student, prefix=f'step_{global_step}')
+                results = evaluator.evaluate(model, prefix=f'step_{global_step}')
                 wandb.log(results, step=global_step)
 
                 f1 = results["f1"]
@@ -113,7 +106,7 @@ def train(args, student_train_batches, teacher_train_batches, student, teacher, 
 
                     # Save model
                     output_dir = os.path.join(args.output_dir, f'model')
-                    save_all(tokenizer=tokenizer, model=student, output_dir=output_dir)
+                    save_all(tokenizer=tokenizer, model=model, output_dir=output_dir)
                 logger.info(f"best f1 is {best_f1} on global step {best_global_step}")
 
     with open(os.path.join(args.output_dir, f"best_f1.json"), "w") as f:
