@@ -103,7 +103,9 @@ def main():
             max_segment_len=args.max_segment_len,
             max_doc_len=4096
         )
-        train_batches = coref_dataset.create_batches(sampler=train_sampler, cache_dir=args.cache_dir).shuffle(seed=args.seed)
+        train_batches = coref_dataset.create_batches(
+            sampler=train_sampler, dataset_files=args.dataset_files, cache_dir=args.cache_dir
+        ).shuffle(seed=args.seed)
         logger.info(train_batches)
 
         global_step, tr_loss = train(args, train_batches, model, tokenizer, evaluator)

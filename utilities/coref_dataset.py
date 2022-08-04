@@ -85,16 +85,15 @@ def create(tokenizer, train_file=None, dev_file=None, test_file=None, cache_dir=
         logger.info(f'Tokenize documents...')
         dataset = dataset.map(encode, batched=False, fn_kwargs={'tokenizer': tokenizer})
         dataset = dataset.remove_columns(column_names=['speakers', 'clusters'])
-        dataset['data_files'] = dataset_files
 
         logger.info(f'Saving dataset to {dataset_path}')
         dataset.save_to_disk(dataset_path)
 
-    return dataset
+    return dataset, dataset_files
 
 
-def create_batches(sampler, cache_dir='cache'):
-    cache_key = Hasher.hash(Hasher.hash(sampler.dataset['dataset_files']) + Hasher.hash(sampler.collator))
+def create_batches(sampler, dataset_files, cache_dir='cache'):
+    cache_key = Hasher.hash(Hasher.hash(dataset_files) + Hasher.hash(sampler.collator))
     dataset_path = os.path.join(cache_dir, cache_key)
 
     try:
