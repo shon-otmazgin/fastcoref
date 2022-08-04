@@ -4,10 +4,10 @@ from torch.nn import Module, Linear, LayerNorm, Dropout
 from transformers import BertPreTrainedModel, AutoModel
 from transformers.activations import ACT2FN
 
-from utilities.util import extract_clusters, extract_mentions_to_clusters, mask_tensor
+from util import extract_clusters, extract_mentions_to_clusters, mask_tensor
 
-from utilities.consts import STOPWORDS
-from utilities.util import get_pronoun_id, get_category_id
+from consts import STOPWORDS
+from util import get_pronoun_id, get_category_id
 
 # took from: https://github.com/yuvalkirstain/s2e-coref
 
@@ -115,7 +115,7 @@ class S2E(BertPreTrainedModel):
         # this is antecedents scores - rows mentions, cols coref mentions
         topk_mention_logits = topk_mention_logits.unsqueeze(-1) + topk_mention_logits.unsqueeze(-2)  # [batch_size, max_k, max_k]
 
-        return topk_1d_indices, topk_mention_start_ids, topk_mention_end_ids, span_mask, topk_mention_logits
+        return topk_mention_start_ids, topk_mention_end_ids, span_mask, topk_mention_logits, topk_1d_indices
 
     def _mask_antecedent_logits(self, antecedent_logits, span_mask):
         # We now build the matrix for each pair of spans (i,j) - whether j is a candidate for being antecedent of i?
@@ -260,7 +260,7 @@ class S2E(BertPreTrainedModel):
         mention_logits = self._calc_mention_logits(start_mention_reps, end_mention_reps)
 
         # prune mentions
-        topk_1d_indices, mention_start_ids, mention_end_ids, span_mask, topk_mention_logits = self._prune_topk_mentions(mention_logits, attention_mask)
+        mention_start_ids, mention_end_ids, span_mask, topk_mention_logits, topk_1d_indices = self._prune_topk_mentions(mention_logits, attention_mask)
 
         batch_size, _, dim = start_coref_reps.size()
         max_k = mention_start_ids.size(-1)
@@ -278,7 +278,7 @@ class S2E(BertPreTrainedModel):
         final_logits = torch.cat((final_logits, torch.zeros((batch_size, max_k, 1), device=self.device)), dim=-1)  # [batch_size, max_k, max_k + 1]
 
         if return_all_outputs:
-            outputs = (topk_1d_indices, mention_start_ids, mention_end_ids, mention_logits, coref_logits, final_logits, topk_start_coref_reps, topk_end_coref_reps)
+            outputs = (mention_start_ids, mention_end_ids, mention_logits, final_logits, topk_1d_indices)
         else:
             outputs = tuple()
 
