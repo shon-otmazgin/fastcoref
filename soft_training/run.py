@@ -13,7 +13,7 @@ from utilities.consts import SUPPORTED_MODELS
 from models.modeling import FastCoref
 from models.modeling_s2e import S2E
 from models.modeling_lingmess import LingMessCoref
-from soft_training.load_teacher.training import train
+from soft_training.training import train
 from utilities.eval import Evaluator
 from utilities.util import set_seed
 from utilities.cli import parse_args

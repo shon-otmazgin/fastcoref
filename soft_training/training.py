@@ -63,11 +63,9 @@ def train(args, student_train_batches, teacher_train_batches, student, teacher, 
 
             teacher_batch['input_ids'] = torch.tensor(teacher_batch['input_ids'], device=args.device)
             teacher_batch['attention_mask'] = torch.tensor(teacher_batch['attention_mask'], device=args.device)
-            teacher_batch['gold_clusters'] = torch.tensor(teacher_batch['gold_clusters'], device=args.device)
 
             student_batch['input_ids'] = torch.tensor(student_batch['input_ids'], device=args.device)
             student_batch['attention_mask'] = torch.tensor(student_batch['attention_mask'], device=args.device)
-            student_batch['gold_clusters'] = torch.tensor(student_batch['gold_clusters'], device=args.device)
             if 'leftovers' in student_batch:
                 student_batch['leftovers']['input_ids'] = torch.tensor(student_batch['leftovers']['input_ids'], device=args.device)
                 student_batch['leftovers']['attention_mask'] = torch.tensor(student_batch['leftovers']['attention_mask'], device=args.device)
@@ -77,11 +75,11 @@ def train(args, student_train_batches, teacher_train_batches, student, teacher, 
             teacher.eval()
 
             with torch.no_grad():
-                outputs = teacher(teacher_batch, gold_clusters=None, return_all_outputs=True)
+                outputs = teacher(teacher_batch, return_all_outputs=True)
                 teacher_logits, topk_1d_indices = outputs[-2], outputs[-1]
 
             with torch.cuda.amp.autocast():
-                outputs = student(student_batch, topk_1d_indices=t_topk_1d_indices, gold_clusters=None, return_all_outputs=True)
+                outputs = student(student_batch, topk_1d_indices=topk_1d_indices, return_all_outputs=True)
                 student_logits, span_mask = outputs[-1], outputs[0]
 
             loss = softXEnt(teacher_logits=teacher_logits, student_logits=student_logits, span_mask=span_mask)
