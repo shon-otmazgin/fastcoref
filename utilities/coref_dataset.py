@@ -84,6 +84,8 @@ def create(tokenizer, train_file=None, dev_file=None, test_file=None, cache_dir=
         logger.info(f'Tokenize documents...')
         dataset = dataset.map(encode, batched=False, fn_kwargs={'tokenizer': tokenizer})
         dataset = dataset.remove_columns(column_names=['speakers', 'clusters'])
+        if dataset_files['train']:
+            dataset['train']._fingerprint = cache_key
 
         logger.info(f'Saving dataset to {dataset_path}')
         dataset.save_to_disk(dataset_path)

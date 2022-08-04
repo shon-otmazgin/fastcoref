@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="PublishConfigData" autoUpload="Always" serverName="shon711@localhost:8888" remoteFilesAllowedToDisappearOnAutoupload="false">
+    <serverData>
+      <paths name="shon711@localhost:8888">
+        <serverdata>
+          <mappings>
+            <mapping deploy="/home/nlp/shon711/fast-coref" local="$PROJECT_DIR$" web="/" />
+          </mappings>
+        </serverdata>
+      </paths>
+    </serverData>
+    <option name="myAutoUpload" value="ALWAYS" />
+  </component>
+</project>
