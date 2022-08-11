@@ -49,7 +49,7 @@ def train(args, train_batches, model, tokenizer, evaluator):
     logger.info("  Total optimization steps = %d", t_total)
 
     global_step, tr_loss, logging_loss = 0, 0.0, 0.0
-    best_f1, best_global_step = -1, -1
+    best_recall, best_global_step = -1, -1
 
     train_iterator = tqdm(range(int(args.train_epochs)), desc="Epoch")
     for _ in train_iterator:
@@ -90,18 +90,18 @@ def train(args, train_batches, model, tokenizer, evaluator):
                 results = evaluator.evaluate(model, prefix=f'step_{global_step}')
                 wandb.log(results, step=global_step)
 
-                f1 = results["f1"]
-                if f1 > best_f1:
-                    best_f1, best_global_step = f1, global_step
-                    wandb.run.summary["best_f1"] = best_f1
+                recall = results["recall"]
+                if recall > best_recall:
+                    best_recall, best_global_step = recall, global_step
+                    wandb.run.summary["best_recall"] = best_recall
 
                     # Save model
                     output_dir = os.path.join(args.output_dir, f'model')
                     save_all(tokenizer=tokenizer, model=model, output_dir=output_dir)
-                logger.info(f"best f1 is {best_f1} on global step {best_global_step}")
+                logger.info(f"best recall is {best_recall} on global step {best_global_step}")
 
-    with open(os.path.join(args.output_dir, f"best_f1.json"), "w") as f:
-        json.dump({"best_f1": best_f1, "best_global_step": best_global_step}, f)
+    with open(os.path.join(args.output_dir, f"best_recall.json"), "w") as f:
+        json.dump({"best_recall": best_recall, "best_global_step": best_global_step}, f)
 
     return global_step, tr_loss / global_step
 

@@ -14,10 +14,10 @@ import shutil
 import torch
 from transformers import AutoConfig, AutoTokenizer
 
-from models.modeling import FastCoref as COREF_CLASS
+from models.mention_modeling import FastMention
 from training import train
 from utilities import coref_dataset
-from utilities.eval import Evaluator
+from utilities.eval_mention import Evaluator
 from utilities.util import set_seed
 from utilities.cli import parse_args
 from utilities.collate import DynamicBatchSampler, SegmentCollator
@@ -60,7 +60,7 @@ def main():
     config = AutoConfig.from_pretrained(args.model_name_or_path, cache_dir=args.cache_dir)
     tokenizer = AutoTokenizer.from_pretrained(args.model_name_or_path, use_fast=True, add_prefix_space=True, cache_dir=args.cache_dir)
 
-    model, loading_info = COREF_CLASS.from_pretrained(
+    model, loading_info = FastMention.from_pretrained(
         args.model_name_or_path, output_loading_info=True,
         config=config, cache_dir=args.cache_dir, args=args
     )
