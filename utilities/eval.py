@@ -1,6 +1,7 @@
 import logging
 import numpy as np
 import torch
+import time
 
 from metrics import CorefEvaluator, MentionEvaluator
 from util import create_clusters, create_mention_to_antecedent, update_metrics, \
@@ -30,6 +31,7 @@ class Evaluator:
         doc_to_new_word_map = {}
         doc_to_prediction = {}
 
+        total_time = 0
         evaluation = False
         with tqdm(desc="Inference", total=len(self.eval_dataloader.dataset)) as progress_bar:
             for idx, batch in enumerate(self.eval_dataloader):
@@ -39,8 +41,11 @@ class Evaluator:
                 new_token_map = batch['new_token_map']
                 gold_clusters = batch['gold_clusters']
 
+                start_time = time.time()
                 with torch.no_grad():
                     outputs = model(batch, gold_clusters=gold_clusters, return_all_outputs=True)
+                end_time = time.time()
+                total_time += end_time - start_time
 
                 outputs_np = tuple(tensor.cpu().numpy() for tensor in outputs)
 
@@ -78,5 +83,6 @@ class Evaluator:
             results = output_evaluation_metrics(
                 metrics_dict=metrics_dict, output_dir=self.output_dir, prefix=prefix
             )
+        logger.info(f'Total time: {total_time:.6f} seconds')
 
         return results
