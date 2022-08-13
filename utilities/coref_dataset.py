@@ -8,7 +8,7 @@ from datasets.fingerprint import Hasher
 from datasets import Dataset, DatasetDict
 from tqdm import tqdm
 
-import util
+from utilities import util
 import consts
 from utilities.collate import SegmentCollator, LongformerCollator
 
@@ -61,7 +61,7 @@ def encode(example, tokenizer):
     return encoded_example
 
 
-def create(tokenizer, train_file=None, dev_file=None, test_file=None, cache_dir='cache'):
+def create(tokenizer, train_file=None, dev_file=None, test_file=None, cache_dir='cache', api=False):
     if train_file is None and dev_file is None and test_file is None:
         raise Exception(f'Provide at least train/dev/test file to create the dataset')
 
@@ -74,20 +74,20 @@ def create(tokenizer, train_file=None, dev_file=None, test_file=None, cache_dir=
         dataset = datasets.load_from_disk(dataset_path)
         logger.info(f'Dataset restored from: {dataset_path}')
     except FileNotFoundError:
-        logger.info(f'Creating dataset for {dataset_files}')
+        logger.info(f'Creating dataset...')
 
         dataset_dict = {}
         for split, path in dataset_files.items():
             if path is not None:
-                df = util.to_dataframe(path)
+                df = util.to_dataframe(path, api=api)
                 dataset_dict[split] = Dataset.from_pandas(df)
 
         dataset = DatasetDict(dataset_dict)
-        logger.info(f'Tokenize documents...')
+        logger.info(f'Tokenize tokens with HuggingFace...')
         dataset = dataset.map(encode, batched=False, fn_kwargs={'tokenizer': tokenizer})
         dataset = dataset.remove_columns(column_names=['speakers', 'clusters'])
 
-        logger.info(f'Saving dataset to {dataset_path}')
+        logger.info(f'Saving dataset to: {dataset_path}')
         dataset.save_to_disk(dataset_path)
 
     return dataset, dataset_files

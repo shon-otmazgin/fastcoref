@@ -98,7 +98,7 @@ def write_prediction_to_jsonlines(args, doc_to_prediction, doc_to_tokens, doc_to
             writer.write(json.dumps(doc) + "\n")
 
 
-def to_dataframe(file_path):
+def to_dataframe(file_path, api=False):
     global nlp
     df = pd.read_json(file_path, lines=True)
 
@@ -111,8 +111,26 @@ def to_dataframe(file_path):
         if nlp is None:
             nlp = spacy.load("en_core_web_sm", exclude=["tagger", "parser", "lemmatizer", "ner", "textcat"])
         texts = df['text'].tolist()
-        logger.info(f'Tokenize documents using Spacy...')
-        df['tokens'] = [[tok.text for tok in doc] for doc in tqdm(nlp.pipe(texts), total=len(texts))]
+        logger.info(f'Tokenize text with Spacy...')
+
+        docs_tokens = []
+        docs_tokens_to_start_char = []
+        docs_tokens_to_end_char = []
+        for doc in tqdm(nlp.pipe(texts), total=len(texts)):
+            tokens = []
+            tokens_to_start_char = []
+            tokens_to_end_char = []
+            for tok in doc:
+                tokens.append(tok.text)
+                tokens_to_start_char.append(tok.idx)
+                tokens_to_end_char.append(tok.idx + len(tok.text))
+            docs_tokens.append(tokens)
+            docs_tokens_to_start_char.append(tokens_to_start_char)
+            docs_tokens_to_end_char.append(tokens_to_end_char)
+
+        df['tokens'] = docs_tokens
+        df['tokens_to_start_char'] = docs_tokens_to_start_char
+        df['tokens_to_end_char'] = docs_tokens_to_end_char
     else:
         raise NotImplementedError(f'The jsonlines must include tokens/text/sentences attribute')
 
@@ -121,13 +139,19 @@ def to_dataframe(file_path):
     else:
         df['speakers'] = df['tokens'].apply(lambda x: [None] * len(x))
 
-    if 'doc_key' not in df.columns:
+    if not api and 'doc_key' not in df.columns:
         raise NotImplementedError(f'The jsonlines must include doc_key, you can use uuid.uuid4().hex to generate.')
 
+    columns = ['tokens', 'speakers']
+    if not api:
+        columns.append('doc_key')
+    if 'text' in df.columns:
+        columns.append('text')
+        columns.append('tokens_to_start_char')
+        columns.append('tokens_to_end_char')
     if 'clusters' in df.columns:
-        df = df[['doc_key', 'tokens', 'speakers', 'clusters']]
-    else:
-        df = df[['doc_key', 'tokens', 'speakers']]
+        columns.append('clusters')
+    df = df[columns]
 
     df = df.dropna()
     df = df.reset_index(drop=True)
