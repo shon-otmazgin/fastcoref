@@ -16,7 +16,7 @@ collator = SegmentCollator(tokenizer=tokenizer, device=device, max_segment_len=5
 sampler = DynamicBatchSampler(
     dataset['train'],
     collator=collator,
-    max_tokens=10000,
+    max_tokens=40000,
     max_segment_len=512,
 )
 

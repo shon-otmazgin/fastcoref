@@ -14,7 +14,7 @@ import shutil
 import torch
 from transformers import AutoConfig, AutoTokenizer
 
-from models.modeling import FastCoref as COREF_CLASS
+from models.modeling_fcoref import FastCorefModel as COREF_CLASS
 from training import train
 from utilities import coref_dataset
 from utilities.eval import Evaluator

@@ -14,7 +14,7 @@ import shutil
 import torch
 from transformers import AutoConfig, AutoTokenizer
 
-from models.modeling import FastCoref as COREF_CLASS
+from models.modeling_fcoref import FastCorefModel as COREF_CLASS
 from training import train
 from utilities import coref_dataset
 from utilities.eval import Evaluator
@@ -112,8 +112,8 @@ def main():
     # Evaluation
     results = evaluator.evaluate(model)
 
-    # model.push_to_hub("lingmess-coref", organization='biu-nlp', use_temp_dir=True)
-    # tokenizer.push_to_hub("lingmess-coref", organization='biu-nlp', use_temp_dir=True)
+    # model.push_to_hub("f-coref", organization='biu-nlp', use_temp_dir=True)
+    # tokenizer.push_to_hub("f-coref", organization='biu-nlp', use_temp_dir=True)
 
     return results
 

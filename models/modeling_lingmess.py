@@ -32,7 +32,7 @@ class FullyConnectedLayer(Module):
         return temp
 
 
-class LingMessCoref(BertPreTrainedModel):
+class LingMessModel(BertPreTrainedModel):
     def __init__(self, config, args):
         super().__init__(config)
         self.max_span_length = args.max_span_length
@@ -44,8 +44,8 @@ class LingMessCoref(BertPreTrainedModel):
 
         # this is how huggingface loading the class model and setting the name of the variable.
         base_model = AutoModel.from_config(config)
-        LingMessCoref.base_model_prefix = base_model.base_model_prefix
-        LingMessCoref.config_class = base_model.config_class
+        LingMessModel.base_model_prefix = base_model.base_model_prefix
+        LingMessModel.config_class = base_model.config_class
         setattr(self, self.base_model_prefix, base_model)
 
         self.start_mention_mlp = FullyConnectedLayer(config, self.hidden_size, self.ffnn_size, args.dropout_prob)
@@ -350,7 +350,7 @@ class LingMessCoref(BertPreTrainedModel):
         categories_logits = torch.cat((categories_logits, torch.zeros((batch_size, self.num_cats, max_k, 1), device=self.device)), dim=-1)  # [batch_size, num_cats, max_k, max_k + 1]
 
         if return_all_outputs:
-            outputs = (mention_start_ids, mention_end_ids, mention_logits, final_logits, topk_1d_indices)
+            outputs = (mention_start_ids, mention_end_ids, mention_logits, final_logits)
         else:
             outputs = tuple()
 

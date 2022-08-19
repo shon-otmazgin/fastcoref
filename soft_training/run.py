@@ -10,9 +10,9 @@ import torch
 from transformers import AutoConfig, AutoTokenizer
 
 from utilities.consts import SUPPORTED_MODELS
-from models.modeling import FastCoref
+from models.modeling_fcoref import FastCorefModel
 from models.modeling_s2e import S2E
-from models.modeling_lingmess import LingMessCoref
+from models.modeling_lingmess import LingMessModel
 from soft_training.training import train
 from utilities.eval import Evaluator
 from utilities.util import set_seed
@@ -77,11 +77,11 @@ def main():
     tokenizer = AutoTokenizer.from_pretrained(args.model_name_or_path, use_fast=True,
                                               add_prefix_space=True, cache_dir=args.cache_dir)
 
-    student = get_model(args.model_name_or_path, FastCoref, args)
+    student = get_model(args.model_name_or_path, FastCorefModel, args)
 
     ffnn_size = args.ffnn_size
     args.ffnn_size = 2048
-    teacher = get_model('biu-nlp/lingmess-coref', LingMessCoref, args)
+    teacher = get_model('biu-nlp/lingmess-coref', LingMessModel, args)
     # teacher = get_model('/home/nlp/shon711/fastcoref/trained_longformer', S2E, args)
     args.ffnn_size = ffnn_size
 
