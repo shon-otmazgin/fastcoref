@@ -102,7 +102,7 @@ python run.py \
       --learning_rate=1e-5 \
       --ffnn_size=1024 \
       --top_lambda=0.25 \
-      --experiment_name="your-cosum-fastcoref" \
+      --experiment_name="your-custom-fastcoref" \
       --device=cuda:7
 ```
 
