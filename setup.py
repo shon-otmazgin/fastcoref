@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 
 setup(
     name='fastcoref',
-    version='1.2',
+    version='1.3',
     license='MIT',
     author="Shon Otmazgin, Arie Cattan, Yoav Goldberg",
     author_email='shon711@gmail.com',
