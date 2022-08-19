@@ -8,12 +8,12 @@ import pandas as pd
 from tqdm.auto import tqdm
 from transformers import AutoConfig, AutoTokenizer
 
-from coref_models.modeling_fcoref import FastCorefModel
-from coref_models.modeling_lingmess import LingMessModel
+from fastcoref.coref_models.modeling_fcoref import FastCorefModel
+from fastcoref.coref_models.modeling_lingmess import LingMessModel
 from utilities.util import set_seed, create_mention_to_antecedent, create_clusters, align_to_char_level, \
     align_clusters_to_char_level
-from utilities.collate import SegmentCollator, DynamicBatchSampler, LongformerCollator
-from utilities import coref_dataset
+from fastcoref.utilities.collate import SegmentCollator, DynamicBatchSampler, LongformerCollator
+from fastcoref.utilities import coref_dataset
 
 # Setup logging
 logger = logging.getLogger(__name__)
