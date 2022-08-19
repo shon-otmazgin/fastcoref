@@ -57,7 +57,8 @@ preds = model.predict(
 
 The `max_tokens_in_batch` parameter can be used to control the speed vs. memory consumption (as well as speed vs. accuracy) tradeoff, and can be tuned to maximize the utilization of the associated hardware.
 
-To use the larger but more accurate `LingMess` model, simply import `LingMessCoref` instead of FCoref:
+Lastly,
+To use the larger but more accurate [`LingMess`](https://huggingface.co/biu-nlp/lingmess-coref) model, simply import `LingMessCoref` instead of [`FCoref`](https://huggingface.co/biu-nlp/f-coref):
 
 ```python
 from fastcoref import LingMessCoref
