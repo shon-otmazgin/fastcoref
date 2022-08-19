@@ -13,7 +13,7 @@ setup(
     name='fastcoref',
     long_description=long_description,
     long_description_content_type='text/markdown',
-    version='1.5',
+    version='1.6.0',
     license='MIT',
     author="Shon Otmazgin, Arie Cattan, Yoav Goldberg",
     author_email='shon711@gmail.com',
