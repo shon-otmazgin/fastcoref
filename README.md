@@ -76,9 +76,11 @@ Custom dataset guidelines:
    1. `doc_key` (you can use `uuid.uuid4().hex` to generate or any other keys)
    2. `tokens` field, if you have plain text, it is recommended to run [`Spacy`](https://spacy.io/) tokenizer to get tokens.
    3. `clusters` information as a span start/end indices of the `tokens` attribute.
-   
+
+Then you can do the following for training:
 ```
-cd hard_training
+git clone https://github.com/shon-otmazgin/fastcoref.git
+cd fastcoref/hard_training
 ```
 
 ```python
