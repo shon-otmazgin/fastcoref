@@ -60,6 +60,40 @@ def align_clusters(clusters, subtoken_maps, new_word_maps):
     return new_clusters
 
 
+def align_clusters_to_char_level(clusters, char_map):
+    new_clusters = []
+    for cluster in clusters:
+        new_cluster = []
+        for start, end in cluster:
+            span_idx, span_char_level = char_map[(start, end)]
+            if span_char_level is None:
+                continue
+            new_cluster.append(span_char_level)
+        new_clusters.append(new_cluster)
+    return new_clusters
+
+
+def align_to_char_level(span_starts, span_ends, subtoken_maps, new_word_maps, tokens_to_start_char, tokens_to_end_char):
+    char_map = {}
+    reverse_char_map = {}
+    for idx, (start, end) in enumerate(zip(span_starts, span_ends)):
+        try:
+            new_start, new_end = subtoken_maps[start], subtoken_maps[end]
+        except IndexError:
+            # this is padding index
+            char_map[(start, end)] = None, None
+            continue
+        if new_start is None or new_end is None:
+            char_map[(start, end)] = None, None
+            continue
+        new_start, new_end = new_word_maps[new_start], new_word_maps[new_end]
+        new_start, new_end = tokens_to_start_char[new_start], tokens_to_end_char[new_end]
+        char_map[(start, end)] = idx, (new_start, new_end)
+        reverse_char_map[(new_start, new_end)] = idx, (start, end)
+
+    return char_map, reverse_char_map
+
+
 def flatten(l):
     return [item for sublist in l for item in sublist]
 
