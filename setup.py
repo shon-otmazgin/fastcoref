@@ -17,7 +17,7 @@ setup(
     license='MIT',
     author="Shon Otmazgin, Arie Cattan, Yoav Goldberg",
     author_email='shon711@gmail.com',
-    packages=find_packages('src'),
+    packages=['fastcoref', 'fastcoref.coref_models', 'fastcoref.utilities'],
     url='https://github.com/shon-otmazgin/fastcoref',
     install_requires=[
         'tqdm>=4.64.0',
