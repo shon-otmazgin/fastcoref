@@ -2,6 +2,7 @@ import os
 import logging
 import json
 import spacy
+from spacy.cli import download
 from pathlib import Path
 from tqdm import tqdm
 import random
@@ -143,7 +144,11 @@ def to_dataframe(file_path, api=False):
         df['tokens'] = df['sentences'].apply(lambda x: flatten(x))
     elif 'text' in df.columns:
         if nlp is None:
-            nlp = spacy.load("en_core_web_sm", exclude=["tagger", "parser", "lemmatizer", "ner", "textcat"])
+            try:
+                nlp = spacy.load("en_core_web_sm", exclude=["tagger", "parser", "lemmatizer", "ner", "textcat"])
+            except OSError:
+                download('en_core_web_sm')
+                nlp = spacy.load("en_core_web_sm", exclude=["tagger", "parser", "lemmatizer", "ner", "textcat"])
         texts = df['text'].tolist()
         logger.info(f'Tokenize text with Spacy...')
 

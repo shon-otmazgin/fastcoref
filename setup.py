@@ -19,7 +19,6 @@ setup(
         'transformers>=4.11.3',
         'datasets>=2.1.0',
         'wandb>=0.12.15',
-        'en_core_web_sm@https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.0.0/en_core_web_sm-3.0.0.tar.gz'
       ],
 
 )
