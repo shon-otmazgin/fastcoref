@@ -75,7 +75,7 @@ Custom dataset guidelines:
 3. Each json line in the file must include these fields:
    1. `doc_key` (you can use `uuid.uuid4().hex` to generate or any other keys)
    2. `tokens` field, if you have plain text, it is recommended to run [`Spacy`](https://spacy.io/) tokenizer to get tokens.
-   3. `clusters` information as a span start/end indices of the `tokens` attribute.
+   3. `clusters` information as a span start/end indices of the `tokens`. For instance, you can use `LingMessCoref` model of this package to annotate coreference clusters for your dataset :)
 
 Then you can do the following for training:
 ```
