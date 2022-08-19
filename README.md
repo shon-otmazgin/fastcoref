@@ -90,8 +90,8 @@ python run.py \
       --overwrite_output_dir \
       --model_name_or_path=distilroberta-base \
       --train_file=PATH_TO_TRAIN_FILE.jsonlines \
-      --dev_file=PATH_TO_TRAIN_FILE.jsonlines \
-      --test_file=PATH_TO_TRAIN_FILE.jsonlines \
+      --dev_file=PATH_TO_DEV_FILE.jsonlines \
+      --test_file=PATH_TO_TEST_FILE.jsonlines \
       --max_tokens_in_batch=5000 \
       --do_train \
       --eval_split=dev \
