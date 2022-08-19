@@ -114,6 +114,10 @@ class AbstractCoref(ABC):
         pass
 
     def predict(self, texts, max_tokens_in_batch=10000):
+        if isinstance(texts, str):
+            texts = [texts]
+        if not isinstance(texts, list):
+            raise ValueError(f'texts argument expected to be a list of strings, or one single text string. provided {type(texts)}')
         dataloader = self._prepare_batches(texts, max_tokens_in_batch)
 
         self.model.eval()

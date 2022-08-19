@@ -4,6 +4,8 @@ texts = ['We are so happy to see you using our coref package. This package is ve
          'The man tried to put the boot on his foot but it was too small.']
 
 model = FCoref(device='cuda:0')
+# preds = model.predict(texts={'text1': 'sss'}, max_tokens_in_batch=5000)
+preds = model.predict(texts=texts[0], max_tokens_in_batch=5000)
 preds = model.predict(texts=texts, max_tokens_in_batch=5000)
 
 print(preds[0].get_clusters())
