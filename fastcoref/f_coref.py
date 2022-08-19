@@ -10,7 +10,7 @@ from transformers import AutoConfig, AutoTokenizer
 
 from fastcoref.coref_models.modeling_fcoref import FastCorefModel
 from fastcoref.coref_models.modeling_lingmess import LingMessModel
-from utilities.util import set_seed, create_mention_to_antecedent, create_clusters, align_to_char_level, \
+from fastcoref.utilities.util import set_seed, create_mention_to_antecedent, create_clusters, align_to_char_level, \
     align_clusters_to_char_level
 from fastcoref.utilities.collate import SegmentCollator, DynamicBatchSampler, LongformerCollator
 from fastcoref.utilities import coref_dataset
