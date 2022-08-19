@@ -7,8 +7,8 @@ from datasets.fingerprint import Hasher
 from datasets import Dataset, DatasetDict
 from tqdm import tqdm
 
-from src.fastcoref.utilities import util, consts
-from src.fastcoref.utilities.collate import SegmentCollator, LongformerCollator
+from utilities import util, consts
+from utilities.collate import SegmentCollator, LongformerCollator
 
 logger = logging.getLogger(__name__)
 
