@@ -21,33 +21,18 @@ logging.basicConfig(format='%(asctime)s - %(levelname)s - \t %(message)s',
                     datefmt='%m/%d/%Y %H:%M:%S', level=logging.INFO)
 
 
-class FCorefModelArgs:
-    def __init__(self, device=None):
-        self.model_name_or_path = 'biu-nlp/f-coref'
+class CorefArgs:
+    def __init__(self, model_name_or_path, top_lambda, ffnn_size, max_segment_len, max_doc_len):
+        self.model_name_or_path = model_name_or_path
         self.cache_dir = 'cache'
-        self.top_lambda = 0.25
+        self.top_lambda = top_lambda
         self.max_span_length = 30
-        self.ffnn_size = 1024
-        self.max_segment_len = 512
+        self.ffnn_size = ffnn_size
+        self.max_segment_len = max_segment_len
+        self.max_doc_len = max_doc_len
         self.dropout_prob = 0.3
-        self.device = device
+        self.device = None
         self.seed = 42
-        self.model = None
-
-
-class LingMessModelArgs:
-    def __init__(self, device=None):
-        self.model_name_or_path = 'biu-nlp/lingmess-coref'
-        self.cache_dir = 'cache'
-        self.top_lambda = 0.4
-        self.max_span_length = 30
-        self.ffnn_size = 2048
-        self.max_segment_len = 512
-        self.max_doc_len = 4096
-        self.dropout_prob = 0.3
-        self.device = device
-        self.seed = 42
-        self.model = None
 
 
 class CorefResult:
@@ -69,11 +54,11 @@ class CorefResult:
 
     def get_logit(self, span_i, span_j):
         if span_i not in self.reverse_char_map:
-            raise ValueError(f'span_i={span_i} is not an entity!')
+            raise ValueError(f'span_i="{self.text[span_i[0]:span_i[1]]}" is not an entity in this model!')
         if span_j not in self.reverse_char_map:
-            raise ValueError(f'span_j={span_j} is not an entity!')
+            raise ValueError(f'span_i="{self.text[span_j[0]:span_j[1]]}" is not an entity in this model!')
 
-        span_i_idx = self.reverse_char_map[span_i][0]
+        span_i_idx = self.reverse_char_map[span_i][0]   # 0 is to get the span index
         span_j_idx = self.reverse_char_map[span_j][0]
 
         if span_i_idx < span_j_idx:
@@ -82,9 +67,29 @@ class CorefResult:
         return self.coref_logit[span_i_idx, span_j_idx]
 
 
-class AbstractCoref(ABC):
-    def __init__(self, args_class, coref_class, device):
-        self.args = args_class()
+COREF_CLASSES = {
+    'FCoref': FastCorefModel,
+    'LingMessCoref': LingMessModel
+}
+
+COREF_COLLATORS = {
+    'FCoref': SegmentCollator,
+    'LingMessCoref': LongformerCollator
+}
+
+COREF_ARGS = {
+    'FCoref': CorefArgs(model_name_or_path='biu-nlp/f-coref', top_lambda=0.25,
+                        ffnn_size=1024, max_segment_len=512, max_doc_len=None),
+
+    'LingMessCoref': CorefArgs(model_name_or_path='biu-nlp/lingmess-coref', top_lambda=0.4,
+                               ffnn_size=2048, max_segment_len=512, max_doc_len=4096),
+}
+
+
+class AutoCoref:
+    def __init__(self, model_type, device):
+        self.args = COREF_ARGS[model_type]
+        COREF_CLASS = COREF_CLASSES[model_type]
 
         # Setup CUDA, GPU & distributed training
         device = torch.device(device if torch.cuda.is_available() else "cpu")
@@ -99,7 +104,12 @@ class AbstractCoref(ABC):
             add_prefix_space=True, cache_dir=self.args.cache_dir
         )
 
-        self.model = coref_class.from_pretrained(
+        self.collator = COREF_COLLATORS[model_type](
+            tokenizer=self.tokenizer, device=self.args.device,
+            max_segment_len=self.args.max_segment_len
+        )
+
+        self.model = COREF_CLASS.from_pretrained(
             self.args.model_name_or_path, config=config,
             cache_dir=self.args.cache_dir, args=self.args
         )
@@ -109,17 +119,24 @@ class AbstractCoref(ABC):
         logger.info(f'Model Parameters: {t_params + h_params:.1f}M, '
                     f'Transformer: {t_params:.1f}M, Coref head: {h_params:.1f}M')
 
-    @abstractmethod
-    def _prepare_batches(self, texts, max_tokens_in_batch):
-        pass
+    def _prepare_dataset(self, texts):
+        f = io.StringIO(pd.DataFrame(texts, columns=['text']).to_json(orient='records', lines=True))
+        dataset, _ = coref_dataset.create(self.tokenizer, test_file=f, cache_dir=self.args.cache_dir, api=True)
 
-    def predict(self, texts, max_tokens_in_batch=10000):
-        if isinstance(texts, str):
-            texts = [texts]
-        if not isinstance(texts, list):
-            raise ValueError(f'texts argument expected to be a list of strings, or one single text string. provided {type(texts)}')
-        dataloader = self._prepare_batches(texts, max_tokens_in_batch)
+        return dataset
 
+    def _prepare_batches(self, dataset, max_tokens_in_batch):
+        dataloader = DynamicBatchSampler(
+            dataset['test'],
+            collator=self.collator,
+            max_tokens=max_tokens_in_batch,
+            max_segment_len=self.args.max_segment_len,
+            max_doc_len=self.args.max_doc_len
+        )
+
+        return dataloader
+
+    def _inference(self, dataloader):
         self.model.eval()
         logger.info(f"***** Running Inference on {len(dataloader.dataset)} texts *****")
 
@@ -157,55 +174,34 @@ class AbstractCoref(ABC):
                     )
                     results.append(res)
 
-                progress_bar.update(n=len(batch))
+                progress_bar.update(n=len(texts))
 
         return results
 
+    def predict(self, texts, max_tokens_in_batch=10000):
+        is_str = False
+        if isinstance(texts, str):
+            texts = [texts]
+            is_str = True
+        if not isinstance(texts, list):
+            raise ValueError(f'texts argument expected to be a list of strings, or one single text string. provided {type(texts)}')
 
-class FCoref(AbstractCoref):
+        dataset = self._prepare_dataset(texts=texts)
+        dataloader = self._prepare_batches(dataset, max_tokens_in_batch)
 
-    def __init__(self, device='cpu'):
-        super().__init__(FCorefModelArgs, FastCorefModel, device)
-
-        self.collator = SegmentCollator(
-            tokenizer=self.tokenizer, device=self.args.device,
-            max_segment_len=self.args.max_segment_len
-        )
-
-    def _prepare_batches(self, texts, max_tokens_in_batch):
-        f = io.StringIO(pd.DataFrame(texts, columns=['text']).to_json(orient='records', lines=True))
-        dataset, dataset_files = coref_dataset.create(self.tokenizer, test_file=f,
-                                                      cache_dir=self.args.cache_dir, api=True)
-
-        dataloader = DynamicBatchSampler(
-            dataset['test'],
-            collator=self.collator,
-            max_tokens=max_tokens_in_batch,
-            max_segment_len=self.args.max_segment_len,
-        )
-
-        return dataloader
+        if is_str:
+            return self._inference(dataloader=dataloader)[0]
+        return self._inference(dataloader=dataloader)
 
 
-class LingMessCoref(AbstractCoref):
+class FCoref(AutoCoref):
 
     def __init__(self, device='cpu'):
-        super().__init__(LingMessModelArgs, LingMessModel, device)
+        super().__init__('FCoref', device)
 
-        self.collator = LongformerCollator(
-            tokenizer=self.tokenizer, device=self.args.device)
 
-    def _prepare_batches(self, texts, max_tokens_in_batch):
-        f = io.StringIO(pd.DataFrame(texts, columns=['text']).to_json(orient='records', lines=True))
-        dataset, dataset_files = coref_dataset.create(self.tokenizer, test_file=f,
-                                                      cache_dir=self.args.cache_dir, api=True)
+class LingMessCoref(AutoCoref):
 
-        dataloader = DynamicBatchSampler(
-            dataset['test'],
-            collator=self.collator,
-            max_tokens=max_tokens_in_batch,
-            max_segment_len=self.args.max_segment_len,
-            max_doc_len=self.args.max_doc_len
-        )
+    def __init__(self, device='cpu'):
+        super().__init__('LingMessCoref', device)
 
-        return dataloader

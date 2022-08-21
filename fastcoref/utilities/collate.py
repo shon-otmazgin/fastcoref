@@ -44,9 +44,10 @@ class SegmentCollator:
 
 
 class LongformerCollator:
-    def __init__(self, tokenizer, device):
+    def __init__(self, tokenizer, device, max_segment_len=512):
         self.tokenizer = tokenizer
         self.device = device
+        self.max_segment_len = max_segment_len
 
     def __call__(self, batch):
         # pad to the longest doc in the batch
