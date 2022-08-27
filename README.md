@@ -27,19 +27,19 @@ preds = model.predict(
 
 preds[0].get_clusters(as_strings=False)
 > [[(0, 2), (33, 36)],
-   [(33, 50), (52, 64)]
+   [(33, 51), (52, 64)]
    ]
 
 preds[0].get_clusters()
 > [['We', 'our'],
-   ['our coref package', 'This package']
+   ['our coref package.', 'This package']
    ]
 
 preds[0].get_logit(
-   span_i=(33, 50), span_j=(52, 64)
+   span_i=(33, 51), span_j=(52, 64)
 )
 
-> 18.852894
+> 16.897789
 ```
 
 Processing can be applied to a collection of texts of any length in a batched and parallel fashion:

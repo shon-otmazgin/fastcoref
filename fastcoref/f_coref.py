@@ -7,6 +7,7 @@ import numpy as np
 import pandas as pd
 from tqdm.auto import tqdm
 from transformers import AutoConfig, AutoTokenizer
+from datasets import Dataset
 
 from fastcoref.coref_models.modeling_fcoref import FastCorefModel
 from fastcoref.coref_models.modeling_lingmess import LingMessModel
@@ -36,21 +37,20 @@ class CorefArgs:
 
 
 class CorefResult:
-    def __init__(self, text, clusters, reverse_char_map, coref_logit):
+    def __init__(self, text, clusters, char_map, reverse_char_map, coref_logit):
         self.text = text
         self.clusters = clusters
+        self.char_map = char_map
         self.reverse_char_map = reverse_char_map
         self.coref_logit = coref_logit
 
     def get_clusters(self, as_strings=True):
         if not as_strings:
-            return self.clusters
+            return [[self.char_map[mention][1] for mention in cluster] for cluster in self.clusters]
 
-        clusters_strings = []
-        for cluster in self.clusters:
-            clusters_strings.append([self.text[start:end] for start, end in cluster])
+        return [[self.text[self.char_map[mention][1][0]:self.char_map[mention][1][1]] for mention in cluster]
+                for cluster in self.clusters]
 
-        return clusters_strings
 
     def get_logit(self, span_i, span_j):
         if span_i not in self.reverse_char_map:
@@ -96,7 +96,7 @@ COREF_ARGS = {
 }
 
 
-class AutoCoref:
+class AutoCoref(ABC):
     def __init__(self, model_type, device):
         self.args = COREF_ARGS[model_type]
         COREF_CLASS = COREF_CLASSES[model_type]
@@ -129,15 +129,13 @@ class AutoCoref:
         logger.info(f'Model Parameters: {t_params + h_params:.1f}M, '
                     f'Transformer: {t_params:.1f}M, Coref head: {h_params:.1f}M')
 
+    @abstractmethod
     def _prepare_dataset(self, texts):
-        f = io.StringIO(pd.DataFrame(texts, columns=['text']).to_json(orient='records', lines=True))
-        dataset, _ = coref_dataset.create(self.tokenizer, test_file=f, cache_dir=self.args.cache_dir, api=True)
-
-        return dataset
+        pass
 
     def _prepare_batches(self, dataset, max_tokens_in_batch):
         dataloader = DynamicBatchSampler(
-            dataset['test'],
+            dataset,
             collator=self.collator,
             max_tokens=max_tokens_in_batch,
             max_segment_len=self.args.max_segment_len,
@@ -154,10 +152,7 @@ class AutoCoref:
         with tqdm(desc="Inference", total=len(dataloader.dataset)) as progress_bar:
             for idx, batch in enumerate(dataloader):
                 texts = batch['text']
-                tokens_to_start_char = batch['tokens_to_start_char']
-                tokens_to_end_char = batch['tokens_to_end_char']
-                subtoken_map = batch['subtoken_map']
-                new_token_map = batch['new_token_map']
+                token_to_char = batch['token_to_char']
 
                 with torch.no_grad():
                     outputs = self.model(batch, return_all_outputs=True)
@@ -169,18 +164,16 @@ class AutoCoref:
 
                 for i in range(len(texts)):
                     char_map, reverse_char_map = align_to_char_level(
-                        span_starts[i], span_ends[i],
-                        subtoken_map[i], new_token_map[i],
-                        tokens_to_start_char[i], tokens_to_end_char[i]
+                        span_starts[i], span_ends[i], token_to_char[i]
                     )
 
                     doc_mention_to_antecedent = mention_to_antecedent[np.nonzero(doc_indices == i)]
                     predicted_clusters = create_clusters(doc_mention_to_antecedent)
-                    predicted_clusters = align_clusters_to_char_level(predicted_clusters, char_map)
 
                     res = CorefResult(
                         text=texts[i], clusters=predicted_clusters,
-                        reverse_char_map=reverse_char_map, coref_logit=coref_logits[i]
+                        char_map=char_map, reverse_char_map=reverse_char_map,
+                        coref_logit=coref_logits[i]
                     )
                     results.append(res)
 
@@ -204,14 +197,44 @@ class AutoCoref:
         return self._inference(dataloader=dataloader)
 
 
+def encode(batch, tokenizer):
+    encoded_batch = tokenizer(batch['text'])
+    return {
+        'input_ids': encoded_batch['input_ids'],
+        'attention_mask': encoded_batch['attention_mask'],
+        'token_to_char': [enc.offsets for enc in encoded_batch.encodings],
+        'length': [len(ids) for ids in encoded_batch['input_ids']]
+    }
+
+
 class FCoref(AutoCoref):
 
     def __init__(self, device='cpu'):
         super().__init__('FCoref', device)
+
+    def _prepare_dataset(self, texts):
+        logger.info(f'Creating dataset...')
+
+        dataset = Dataset.from_dict({'text': texts})
+        logger.info(f'Tokenize {len(texts)} texts with HuggingFace...')
+        dataset = dataset.map(encode, batched=True, batch_size=10000, fn_kwargs={'tokenizer': self.tokenizer})
+
+        return dataset
 
 
 class LingMessCoref(AutoCoref):
 
     def __init__(self, device='cpu'):
         super().__init__('LingMessCoref', device)
+
+    def _prepare_dataset(self, texts):
+        logger.info(f'Creating dataset...')
+
+        dataset = Dataset.from_dict({'text': texts})
+        logger.info(f'Tokenize {len(texts)} texts with HuggingFace...')
+        dataset = dataset.map(encode, batched=True, batch_size=10000, fn_kwargs={'tokenizer': self.tokenizer})
+
+        return dataset
+
+
 

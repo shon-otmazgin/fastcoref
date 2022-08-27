@@ -35,11 +35,6 @@ class SegmentCollator:
         batch['input_ids'] = torch.tensor(input_ids, device=self.device)
         batch['attention_mask'] = torch.tensor(attention_mask, device=self.device)
 
-        # if all the docs with no clusters pad it to 1 cluster with 1 mention.
-        max_num_clusters, max_max_cluster_size = max(1, max(batch['num_clusters'])), max(1, max(batch['max_cluster_size']))
-        padded_clusters = [pad_clusters(cluster, max_num_clusters, max_max_cluster_size) for cluster in batch['gold_clusters']]
-        batch['gold_clusters'] = torch.tensor(padded_clusters, device=self.device)
-
         return batch
 
 
@@ -55,13 +50,6 @@ class LongformerCollator:
 
         batch['input_ids'] = torch.tensor(batch['input_ids'], device=self.device)
         batch['attention_mask'] = torch.tensor(batch['attention_mask'], device=self.device)
-
-        max_num_clusters, max_max_cluster_size = max(batch['num_clusters']), max(batch['max_cluster_size'])
-        if max_num_clusters == 0:
-            batch['gold_clusters'] = None
-        else:
-            padded_clusters = [pad_clusters(cluster, max_num_clusters, max_max_cluster_size) for cluster in batch['gold_clusters']]
-            batch['gold_clusters'] = torch.tensor(padded_clusters, device=self.device)
 
         return batch
 
