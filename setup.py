@@ -23,7 +23,6 @@ setup(
         'tqdm>=4.64.0',
         'numpy>=1.21.6',
         'scipy>=1.7.3',
-        'pandas>=1.3.5',
         'spacy>=3.0.6',
         'torch>=1.10.0',
         'transformers>=4.11.3',
