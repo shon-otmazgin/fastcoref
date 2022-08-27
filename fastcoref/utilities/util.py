@@ -74,15 +74,23 @@ def align_clusters_to_char_level(clusters, char_map):
     return new_clusters
 
 
-def align_to_char_level(span_starts, span_ends, token_to_char):
+def align_to_char_level(span_starts, span_ends, subtoken_map, new_token_map, token_to_char):
     char_map = {}
     reverse_char_map = {}
     for idx, (start, end) in enumerate(zip(span_starts, span_ends)):
-        if start >= len(token_to_char) or end >= len(token_to_char):
+        try:
+            new_start, new_end = subtoken_map[start], subtoken_map[end]
+        except IndexError:
+            # this is padding index
+            char_map[(start, end)] = None, None
             continue
-        char_start, char_end = token_to_char[start][0], token_to_char[end][1]
-        char_map[(start, end)] = idx, (char_start, char_end)
-        reverse_char_map[(char_start, char_end)] = idx, (start, end)
+        if new_start is None or new_end is None:
+            char_map[(start, end)] = None, None
+            continue
+        new_start, new_end = new_token_map[new_start], new_token_map[new_end]
+        new_start, new_end = token_to_char[new_start][0], token_to_char[new_end][1]
+        char_map[(start, end)] = idx, (new_start, new_end)
+        reverse_char_map[(new_start, new_end)] = idx, (start, end)
 
     return char_map, reverse_char_map
 

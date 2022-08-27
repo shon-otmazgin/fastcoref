@@ -8,6 +8,8 @@ import pandas as pd
 from tqdm.auto import tqdm
 from transformers import AutoConfig, AutoTokenizer
 from datasets import Dataset
+import spacy
+from spacy.cli import download
 
 from fastcoref.coref_models.modeling_fcoref import FastCorefModel
 from fastcoref.coref_models.modeling_lingmess import LingMessModel
@@ -129,9 +131,23 @@ class AutoCoref(ABC):
         logger.info(f'Model Parameters: {t_params + h_params:.1f}M, '
                     f'Transformer: {t_params:.1f}M, Coref head: {h_params:.1f}M')
 
-    @abstractmethod
+        try:
+            self.nlp = spacy.load("en_core_web_sm", exclude=["tagger", "parser", "lemmatizer", "ner", "textcat"])
+        except OSError:
+            # TODO: this is a workaround it is not clear how to add "en_core_web_sm" to setup.py
+            download('en_core_web_sm')
+            self.nlp = spacy.load("en_core_web_sm", exclude=["tagger", "parser", "lemmatizer", "ner", "textcat"])
+
     def _prepare_dataset(self, texts):
-        pass
+        logger.info(f'Tokenize {len(texts)} texts...')
+
+        dataset = Dataset.from_dict({'text': texts})
+        dataset = dataset.map(
+            encode, batched=True, batch_size=10000,
+            fn_kwargs={'tokenizer': self.tokenizer, 'nlp': self.nlp}
+        )
+
+        return dataset
 
     def _prepare_batches(self, dataset, max_tokens_in_batch):
         dataloader = DynamicBatchSampler(
@@ -152,6 +168,8 @@ class AutoCoref(ABC):
         with tqdm(desc="Inference", total=len(dataloader.dataset)) as progress_bar:
             for idx, batch in enumerate(dataloader):
                 texts = batch['text']
+                subtoken_map = batch['subtoken_map']
+                new_token_map = batch['new_token_map']
                 token_to_char = batch['token_to_char']
 
                 with torch.no_grad():
@@ -163,12 +181,12 @@ class AutoCoref(ABC):
                 doc_indices, mention_to_antecedent = create_mention_to_antecedent(span_starts, span_ends, coref_logits)
 
                 for i in range(len(texts)):
-                    char_map, reverse_char_map = align_to_char_level(
-                        span_starts[i], span_ends[i], token_to_char[i]
-                    )
-
                     doc_mention_to_antecedent = mention_to_antecedent[np.nonzero(doc_indices == i)]
                     predicted_clusters = create_clusters(doc_mention_to_antecedent)
+
+                    char_map, reverse_char_map = align_to_char_level(
+                        span_starts[i], span_ends[i], subtoken_map[i], new_token_map[i], token_to_char[i]
+                    )
 
                     res = CorefResult(
                         text=texts[i], clusters=predicted_clusters,
@@ -197,29 +215,40 @@ class AutoCoref(ABC):
         return self._inference(dataloader=dataloader)
 
 
-def encode(batch, tokenizer):
-    encoded_batch = tokenizer(batch['text'])
-    return {
-        'input_ids': encoded_batch['input_ids'],
-        'attention_mask': encoded_batch['attention_mask'],
-        'token_to_char': [enc.offsets for enc in encoded_batch.encodings],
-        'length': [len(ids) for ids in encoded_batch['input_ids']]
-    }
-
-
 class FCoref(AutoCoref):
 
     def __init__(self, device='cpu'):
         super().__init__('FCoref', device)
 
-    def _prepare_dataset(self, texts):
-        logger.info(f'Creating dataset...')
 
-        dataset = Dataset.from_dict({'text': texts})
-        logger.info(f'Tokenize {len(texts)} texts with HuggingFace...')
-        dataset = dataset.map(encode, batched=True, batch_size=10000, fn_kwargs={'tokenizer': self.tokenizer})
+def encode(batch, tokenizer, nlp):
+    tokenized_texts = tokenize_with_spacy(batch['text'], nlp)
+    encoded_batch = tokenizer(tokenized_texts['tokens'], add_special_tokens=True, is_split_into_words=True)
+    return {
+        'input_ids': encoded_batch['input_ids'],
+        'attention_mask': encoded_batch['attention_mask'],
+        'length': [len(ids) for ids in encoded_batch['input_ids']],
+        'new_token_map': [list(range(len(tokens))) for tokens in tokenized_texts['tokens']],       # preparation for speaker in the future
+        'subtoken_map': [enc.word_ids for enc in encoded_batch.encodings],
+        **tokenized_texts
+    }
 
-        return dataset
+def tokenize_with_spacy(texts, nlp):
+    def handle_doc(doc):
+        tokens = []
+        token_to_char = []
+        for tok in doc:
+            tokens.append(tok.text)
+            token_to_char.append((tok.idx, tok.idx + len(tok.text)))
+        return tokens, token_to_char
+
+    tokenized_texts = {'tokens': [], 'token_to_char': []}
+    for doc in tqdm(nlp.pipe(texts)):
+        tokens, token_to_char = handle_doc(doc)
+        tokenized_texts['tokens'].append(tokens)
+        tokenized_texts['token_to_char'].append(token_to_char)
+
+    return tokenized_texts
 
 
 class LingMessCoref(AutoCoref):
@@ -227,14 +256,6 @@ class LingMessCoref(AutoCoref):
     def __init__(self, device='cpu'):
         super().__init__('LingMessCoref', device)
 
-    def _prepare_dataset(self, texts):
-        logger.info(f'Creating dataset...')
-
-        dataset = Dataset.from_dict({'text': texts})
-        logger.info(f'Tokenize {len(texts)} texts with HuggingFace...')
-        dataset = dataset.map(encode, batched=True, batch_size=10000, fn_kwargs={'tokenizer': self.tokenizer})
-
-        return dataset
 
 
 

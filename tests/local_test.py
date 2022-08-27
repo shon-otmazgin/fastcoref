@@ -10,20 +10,20 @@ print(preds)
 
 print(preds[0].get_clusters())
 print(preds[0].get_clusters(as_strings=False))
-print(preds[0].get_logit(span_i=(33, 51), span_j=(52, 64)))
+print(preds[0].get_logit(span_i=(33, 50), span_j=(52, 64)))
 print(preds[1].get_clusters())
 print(preds[1].get_clusters(as_strings=False))
 
-#
-# model = LingMessCoref(device='cuda:0')
-# preds = model.predict(texts=texts, max_tokens_in_batch=5000)
-#
-# print(preds[0].get_clusters())
-# print(preds[0].get_clusters(string=True))
-# print(preds[0].get_logit(span_i=(33, 50), span_j=(52, 64)))
-# print(preds[1].get_clusters())
-# print(preds[1].get_clusters(string=True))
-# print(preds[1].get_logit(span_i=(21, 29), span_j=(46, 48)))
+
+model = LingMessCoref(device='cuda:0')
+preds = model.predict(texts=texts, max_tokens_in_batch=5000)
+
+print(preds[0].get_clusters())
+print(preds[0].get_clusters(as_strings=False))
+print(preds[0].get_logit(span_i=(33, 50), span_j=(52, 64)))
+print(preds[1].get_clusters())
+print(preds[1].get_clusters(as_strings=False))
+print(preds[1].get_logit(span_i=(21, 29), span_j=(46, 48)))
 
 
 

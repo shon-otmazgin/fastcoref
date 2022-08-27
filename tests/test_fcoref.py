@@ -11,9 +11,9 @@ class TestFCoref(unittest.TestCase):
                           'The man tried to put the boot on his foot but it was too small.']
         self.model = FCoref(device='cpu')
 
-        self.expected_clusters = [[[(0, 2), (33, 36)], [(33, 51), (52, 64)]],
+        self.expected_clusters = [[[(0, 2), (33, 36)], [(33, 50), (52, 64)]],
                                   [[(0, 7), (33, 36)], [(33, 41), (46, 48)]]]
-        self.expected_clusters_strings = [[['We', 'our'], ['our coref package.', 'This package']],
+        self.expected_clusters_strings = [[['We', 'our'], ['our coref package', 'This package']],
                                           [['The man', 'his'], ['his foot', 'it']]]
 
     def test_predict_with_unexpected_object(self):
@@ -56,7 +56,7 @@ class TestFCoref(unittest.TestCase):
         preds = self.model.predict(texts=self.test_text)
         self.assertIsInstance(preds, list)
 
-        self.assertGreater(preds[0].get_logit(span_i=(33, 51), span_j=(52, 64)), 0)
+        self.assertGreater(preds[0].get_logit(span_i=(33, 50), span_j=(52, 64)), 0)
         with self.assertRaises(ValueError) as exc:
             logit = preds[1].get_logit(span_i=(21, 29), span_j=(46, 48))
         self.assertEqual(str(exc.exception), f'span_i="the boot" is not an entity in this model!')
