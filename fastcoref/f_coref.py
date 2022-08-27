@@ -1,10 +1,8 @@
 from abc import ABC, abstractmethod
 
 import logging
-import io
 import torch
 import numpy as np
-import pandas as pd
 from tqdm.auto import tqdm
 from transformers import AutoConfig, AutoTokenizer
 from datasets import Dataset
@@ -13,10 +11,8 @@ from spacy.cli import download
 
 from fastcoref.coref_models.modeling_fcoref import FastCorefModel
 from fastcoref.coref_models.modeling_lingmess import LingMessModel
-from fastcoref.utilities.util import set_seed, create_mention_to_antecedent, create_clusters, align_to_char_level, \
-    align_clusters_to_char_level
+from fastcoref.utilities.util import set_seed, create_mention_to_antecedent, create_clusters, align_to_char_level, encode
 from fastcoref.utilities.collate import SegmentCollator, DynamicBatchSampler, LongformerCollator
-from fastcoref.utilities import coref_dataset
 
 # Setup logging
 logger = logging.getLogger(__name__)
@@ -219,36 +215,6 @@ class FCoref(AutoCoref):
 
     def __init__(self, device='cpu'):
         super().__init__('FCoref', device)
-
-
-def encode(batch, tokenizer, nlp):
-    tokenized_texts = tokenize_with_spacy(batch['text'], nlp)
-    encoded_batch = tokenizer(tokenized_texts['tokens'], add_special_tokens=True, is_split_into_words=True)
-    return {
-        'input_ids': encoded_batch['input_ids'],
-        'attention_mask': encoded_batch['attention_mask'],
-        'length': [len(ids) for ids in encoded_batch['input_ids']],
-        'new_token_map': [list(range(len(tokens))) for tokens in tokenized_texts['tokens']],       # preparation for speaker in the future
-        'subtoken_map': [enc.word_ids for enc in encoded_batch.encodings],
-        **tokenized_texts
-    }
-
-def tokenize_with_spacy(texts, nlp):
-    def handle_doc(doc):
-        tokens = []
-        token_to_char = []
-        for tok in doc:
-            tokens.append(tok.text)
-            token_to_char.append((tok.idx, tok.idx + len(tok.text)))
-        return tokens, token_to_char
-
-    tokenized_texts = {'tokens': [], 'token_to_char': []}
-    for doc in tqdm(nlp.pipe(texts)):
-        tokens, token_to_char = handle_doc(doc)
-        tokenized_texts['tokens'].append(tokens)
-        tokenized_texts['token_to_char'].append(token_to_char)
-
-    return tokenized_texts
 
 
 class LingMessCoref(AutoCoref):

@@ -1,7 +1,6 @@
 import logging
 import torch
 import math
-from fastcoref.utilities.util import pad_clusters
 
 logger = logging.getLogger(__name__)
 
