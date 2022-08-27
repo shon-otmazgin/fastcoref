@@ -41,15 +41,16 @@ class TestLingMessCoref(unittest.TestCase):
         self.assertIsInstance(preds, list)
         for i, res_obj in enumerate(preds):
             self.assertIsInstance(res_obj, CorefResult)
-            self.assertListEqual(res_obj.get_clusters(), self.expected_clusters[i])
+            self.assertListEqual(res_obj.get_clusters(as_strings=True), self.expected_clusters_strings[i])
 
-    def test_get_clusters_strings(self):
+    def test_get_clusters_indices(self):
         preds = self.model.predict(texts=self.test_text)
 
         self.assertIsInstance(preds, list)
         for i, res_obj in enumerate(preds):
             self.assertIsInstance(res_obj, CorefResult)
-            self.assertListEqual(res_obj.get_clusters(string=True), self.expected_clusters_strings[i])
+            self.assertListEqual(res_obj.get_clusters(as_strings=False), self.expected_clusters[i])
+
 
     def test_get_logits(self):
         preds = self.model.predict(texts=self.test_text)

@@ -22,21 +22,21 @@ from fastcoref import FCoref
 model = FCoref(device='cuda:0')
 
 preds = model.predict(
-    texts=['We are so happy to see you using our coref package. This package is very fast!']
+   texts=['We are so happy to see you using our coref package. This package is very fast!']
 )
 
-preds[0].get_clusters()
-> [[(0, 2), (33, 36)], 
+preds[0].get_clusters(as_strings=False)
+> [[(0, 2), (33, 36)],
    [(33, 50), (52, 64)]
-  ]
+   ]
 
-preds[0].get_clusters(string=True)
-> [['We', 'our'], 
+preds[0].get_clusters()
+> [['We', 'our'],
    ['our coref package', 'This package']
-  ]
- 
+   ]
+
 preds[0].get_logit(
-    span_i=(33, 50), span_j=(52, 64)
+   span_i=(33, 50), span_j=(52, 64)
 )
 
 > 18.852894

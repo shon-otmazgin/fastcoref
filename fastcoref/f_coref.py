@@ -42,8 +42,8 @@ class CorefResult:
         self.reverse_char_map = reverse_char_map
         self.coref_logit = coref_logit
 
-    def get_clusters(self, string=False):
-        if not string:
+    def get_clusters(self, as_strings=True):
+        if not as_strings:
             return self.clusters
 
         clusters_strings = []
@@ -65,6 +65,16 @@ class CorefResult:
             return self.coref_logit[span_j_idx, span_i_idx]
 
         return self.coref_logit[span_i_idx, span_j_idx]
+
+    def __str__(self):
+        if len(self.text) > 50:
+            text_to_print = f'{self.text[:50]}...'
+        else:
+            text_to_print = self.text
+        return f'CorefResult(text="{text_to_print}", clusters={self.get_clusters()})'
+
+    def __repr__(self):
+        return self.__str__()
 
 
 COREF_CLASSES = {
