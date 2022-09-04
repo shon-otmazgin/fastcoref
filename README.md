@@ -1,6 +1,7 @@
 The `fastcoref` Python package provides an easy and fast API for coreference information with only few lines of code without any prepossessing steps.
 
 - [Installation](#Installation)
+- [Demo](#demo)
 - [Quick start](#quick-start)
 - [Training](#distil-your-own-coref-model)
 - [Citation](#citation)
@@ -10,6 +11,14 @@ The `fastcoref` Python package provides an easy and fast API for coreference inf
 ```python
 pip install fastcoref
 ```
+
+## Demo
+
+**NEW** try out the FastCoref web demo
+
+[![Hugging Face Spaces](https://img.shields.io/badge/%F0%9F%A4%97%20Hugging%20Face-Spaces-blue)](https://huggingface.co/spaces/pythiccoder/FastCoref)
+
+[//]: # (Credit: Thanks to @shon-otmazgin)
 
 ## Quick start
 
