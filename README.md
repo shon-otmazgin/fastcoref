@@ -1,4 +1,4 @@
-This repository is the official implementation of the paper ["F-COREF: Fast, Accurate and Easy to Use Coreference Resolution"](hhttps://arxiv.org/abs/2209.04280).
+This repository is the official implementation of the paper ["F-COREF: Fast, Accurate and Easy to Use Coreference Resolution"](https://arxiv.org/abs/2209.04280).
 
 The `fastcoref` Python package provides an easy and fast API for coreference information with only few lines of code without any prepossessing steps.
 
