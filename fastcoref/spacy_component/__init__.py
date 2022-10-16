@@ -1,0 +1,1 @@
+from .spacy_component import FastCorefResolver

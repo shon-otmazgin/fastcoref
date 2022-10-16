@@ -1,6 +1,8 @@
 from setuptools import setup, find_packages
 
 import sys
+
+import fastcoref
 if sys.version_info < (3,7):
     sys.exit('Python < 3.7 is not supported')
 
@@ -17,7 +19,7 @@ setup(
     license='MIT',
     author="Shon Otmazgin, Arie Cattan, Yoav Goldberg",
     author_email='shon711@gmail.com',
-    packages=['fastcoref', 'fastcoref.coref_models', 'fastcoref.utilities'],
+    packages=['fastcoref', 'fastcoref.coref_models', 'fastcoref.utilities','fastcoref.spacy_component'],
     url='https://github.com/shon-otmazgin/fastcoref',
     install_requires=[
         'tqdm>=4.64.0',
