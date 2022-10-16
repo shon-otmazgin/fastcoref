@@ -2,7 +2,6 @@ from setuptools import setup, find_packages
 
 import sys
 
-import fastcoref
 if sys.version_info < (3,7):
     sys.exit('Python < 3.7 is not supported')
 
