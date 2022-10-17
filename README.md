@@ -123,4 +123,11 @@ python run.py \
       --device=cuda:0
 ```
 
+After finish training your own model, point the `FCoref` constractor to the model path. it can be local or in huggingface hub:
+```python
+from fastcoref import FCoref
+
+model = FCoref(model_name_or_path='your-fast-coref-model-path')
+```
+
 ## Citation
