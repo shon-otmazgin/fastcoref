@@ -1,6 +1,6 @@
 import unittest
 
-from fastcoref.f_coref import CorefResult
+from fastcoref.modeling import CorefResult
 
 from fastcoref import FCoref
 
@@ -9,8 +9,8 @@ class TestFCoref(unittest.TestCase):
     def setUp(self) -> None:
         self.test_text = ['We are so happy to see you using our coref package. This package is very fast!',
                           'The man tried to put the boot on his foot but it was too small.']
-        self.model = FCoref(device='cpu')
-
+        self.model = FCoref()
+        device = 'cpu'
         self.expected_clusters = [[[(0, 2), (33, 36)], [(33, 50), (52, 64)]],
                                   [[(0, 7), (33, 36)], [(33, 41), (46, 48)]]]
         self.expected_clusters_strings = [[['We', 'our'], ['our coref package', 'This package']],

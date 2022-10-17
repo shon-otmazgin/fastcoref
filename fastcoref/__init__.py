@@ -1,1 +1,1 @@
-from .f_coref import FCoref, LingMessCoref
+from .modeling import FCoref, LingMessCoref

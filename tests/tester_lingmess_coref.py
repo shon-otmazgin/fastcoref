@@ -1,6 +1,6 @@
 import unittest
 
-from fastcoref.f_coref import CorefResult
+from fastcoref.modeling import CorefResult
 
 from fastcoref import LingMessCoref
 

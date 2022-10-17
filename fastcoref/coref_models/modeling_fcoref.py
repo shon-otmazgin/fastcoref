@@ -30,7 +30,7 @@ class FullyConnectedLayer(Module):
         return temp
 
 
-class FastCorefModel(BertPreTrainedModel):
+class FCorefModel(BertPreTrainedModel):
     def __init__(self, config, args):
         super().__init__(config)
         self.max_span_length = args.max_span_length
@@ -40,8 +40,8 @@ class FastCorefModel(BertPreTrainedModel):
         self.ffnn_size = self.ffnn_size if self.do_mlps else config.hidden_size
 
         base_model = AutoModel.from_config(config)
-        FastCorefModel.base_model_prefix = base_model.base_model_prefix
-        FastCorefModel.config_class = base_model.config_class
+        FCorefModel.base_model_prefix = base_model.base_model_prefix
+        FCorefModel.config_class = base_model.config_class
         setattr(self, self.base_model_prefix, base_model)
 
         self.start_mention_mlp = FullyConnectedLayer(config, config.hidden_size, self.ffnn_size, args.dropout_prob) if self.do_mlps else None
