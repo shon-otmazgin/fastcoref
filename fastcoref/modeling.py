@@ -249,24 +249,22 @@ class CorefModel(ABC):
 
 
 class FCoref(CorefModel):
-    def __init__(self, model_name_or_path='biu-nlp/f-coref', top_lambda=0.25, max_span_length=30, ffnn_size=1024,
-                 max_segment_len=512, max_doc_len=None, cache_dir='cache', device=None):
-        args = CorefArgs(
-            model_name_or_path=model_name_or_path, top_lambda=top_lambda, max_span_length=max_span_length,
-            ffnn_size=ffnn_size, max_segment_len=max_segment_len, max_doc_len=max_doc_len,
-            cache_dir=cache_dir, device=device
-        )
+    def __init__(self, args: CorefArgs = None):
+        if args is None:
+            args = CorefArgs(
+                model_name_or_path='biu-nlp/f-coref', ffnn_size=1024,
+                cache_dir='cache', device=None
+            )
         super().__init__(FCorefModel, LeftOversCollator, args)
 
 
 class LingMessCoref(CorefModel):
-    def __init__(self, model_name_or_path='biu-nlp/lingmess-coref', top_lambda=0.4, max_span_length=30, ffnn_size=2048,
-                 max_segment_len=512, max_doc_len=4096, cache_dir='cache', device=None):
-        args = CorefArgs(
-            model_name_or_path=model_name_or_path, top_lambda=top_lambda, max_span_length=max_span_length,
-            ffnn_size=ffnn_size, max_segment_len=max_segment_len, max_doc_len=max_doc_len,
-            cache_dir=cache_dir, device=device
-        )
+    def __init__(self, args: CorefArgs = None):
+        if args is None:
+            args = CorefArgs(
+                model_name_or_path='biu-nlp/lingmess-coref', ffnn_size=2048, max_doc_len=4096,
+                cache_dir='cache', device=None
+            )
         super().__init__(LingMessModel, PadCollator, args)
 
 
