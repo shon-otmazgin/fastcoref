@@ -62,7 +62,8 @@ def main():
         "max_span_length": args.max_span_length,
         "top_lambda": args.top_lambda,
         "ffnn_size": args.ffnn_size,
-        "dropout_prob": args.dropout_prob
+        "dropout_prob": args.dropout_prob,
+        "max_segment_len": args.max_segment_len
     }
 
     tokenizer = AutoTokenizer.from_pretrained(
