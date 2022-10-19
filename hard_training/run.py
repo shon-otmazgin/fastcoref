@@ -58,11 +58,19 @@ def main():
     set_seed(args)
 
     config = AutoConfig.from_pretrained(args.model_name_or_path, cache_dir=args.cache_dir)
-    tokenizer = AutoTokenizer.from_pretrained(args.model_name_or_path, use_fast=True, add_prefix_space=True, cache_dir=args.cache_dir)
+    config.coref_head = {
+        "max_span_length": args.max_span_length,
+        "top_lambda": args.top_lambda,
+        "ffnn_size": args.ffnn_size,
+        "dropout_prob": args.dropout_prob
+    }
+    tokenizer = AutoTokenizer.from_pretrained(
+        args.model_name_or_path, use_fast=True, add_prefix_space=True, cache_dir=args.cache_dir
+    )
 
     model, loading_info = COREF_CLASS.from_pretrained(
         args.model_name_or_path, output_loading_info=True,
-        config=config, cache_dir=args.cache_dir, args=args
+        config=config, cache_dir=args.cache_dir
     )
 
     if model.base_model_prefix not in SUPPORTED_MODELS:
