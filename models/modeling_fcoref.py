@@ -244,11 +244,11 @@ class FCorefModel(BertPreTrainedModel):
         sequence_output, attention_mask = self.forward_transformer(batch)
 
         # Compute representations
-        start_mention_reps = self.start_mention_mlp(sequence_output) if self.do_mlps else sequence_output
-        end_mention_reps = self.end_mention_mlp(sequence_output) if self.do_mlps else sequence_output
+        start_mention_reps = self.start_mention_mlp(sequence_output)
+        end_mention_reps = self.end_mention_mlp(sequence_output)
 
-        start_coref_reps = self.start_coref_mlp(sequence_output) if self.do_mlps else sequence_output
-        end_coref_reps = self.end_coref_mlp(sequence_output) if self.do_mlps else sequence_output
+        start_coref_reps = self.start_coref_mlp(sequence_output)
+        end_coref_reps = self.end_coref_mlp(sequence_output)
 
         # mention scores
         mention_logits = self._calc_mention_logits(start_mention_reps, end_mention_reps)
