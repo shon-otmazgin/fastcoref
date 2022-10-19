@@ -4,14 +4,7 @@ texts = ['We are so happy to see you using our coref package. This package is ve
          'The man tried to put the boot on his foot but it was too small.',
          "I have a dog. The dog's toys are really cool."]
 
-
-# args = CorefArgs(
-#     model_name_or_path='you-awesome-model',
-#     device='cpu'
-# )
-# model = FCoref(args=args)
-
-model = FCoref()
+model = FCoref(device='cpu')
 
 preds = model.predict(texts=texts, max_tokens_in_batch=5000)
 print(preds)
@@ -21,11 +14,11 @@ for p in preds:
     print(p.get_clusters(as_strings=False))
 print(preds[0].get_logit(span_i=(33, 50), span_j=(52, 64)))
 
-model = LingMessCoref()
-preds = model.predict(texts=texts, max_tokens_in_batch=5000)
-
-for p in preds:
-    print(p.get_clusters())
-    print(p.get_clusters(as_strings=False))
-print(preds[0].get_logit(span_i=(33, 50), span_j=(52, 64)))
-print(preds[1].get_logit(span_i=(21, 29), span_j=(46, 48)))
+# model = LingMessCoref()
+# preds = model.predict(texts=texts, max_tokens_in_batch=5000)
+#
+# for p in preds:
+#     print(p.get_clusters())
+#     print(p.get_clusters(as_strings=False))
+# print(preds[0].get_logit(span_i=(33, 50), span_j=(52, 64)))
+# print(preds[1].get_logit(span_i=(21, 29), span_j=(46, 48)))
