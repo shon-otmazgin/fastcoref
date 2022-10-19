@@ -14,7 +14,7 @@ import shutil
 import torch
 from transformers import AutoConfig, AutoTokenizer
 
-from models.modeling_fcoref import FastCorefModel as COREF_CLASS
+from models.modeling_fcoref import FCorefModel as COREF_CLASS
 from training import train
 from utilities import coref_dataset
 from utilities.eval import Evaluator
@@ -64,6 +64,7 @@ def main():
         "ffnn_size": args.ffnn_size,
         "dropout_prob": args.dropout_prob
     }
+
     tokenizer = AutoTokenizer.from_pretrained(
         args.model_name_or_path, use_fast=True, add_prefix_space=True, cache_dir=args.cache_dir
     )

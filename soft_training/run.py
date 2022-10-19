@@ -10,7 +10,7 @@ import torch
 from transformers import AutoConfig, AutoTokenizer
 
 from utilities.consts import SUPPORTED_MODELS
-from models.modeling_fcoref import FastCorefModel
+from models.modeling_fcoref import FCorefModel
 from models.modeling_s2e import S2E
 from models.modeling_lingmess import LingMessModel
 from soft_training.training import train
@@ -77,7 +77,7 @@ def main():
     tokenizer = AutoTokenizer.from_pretrained(args.model_name_or_path, use_fast=True,
                                               add_prefix_space=True, cache_dir=args.cache_dir)
 
-    student = get_model(args.model_name_or_path, FastCorefModel, args)
+    student = get_model(args.model_name_or_path, FCorefModel, args)
 
     ffnn_size = args.ffnn_size
     args.ffnn_size = 2048
