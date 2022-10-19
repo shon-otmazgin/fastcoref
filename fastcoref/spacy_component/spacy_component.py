@@ -9,9 +9,10 @@ from typing import List,Tuple
     "fastcoref",
     assigns=["doc._.resolved_text","doc._.coref_clusters"],
     default_config={
-        "model_name": "FCoref",
-        "device": "cuda:0",
-        "max_tokens_in_batch":5000
+        "model_architecture": 'FCoref', # FCoref or LingMessCoref 
+        "model_path": 'biu-nlp/f-coref', # You can specify your own trained model path
+        "device": None, # "cuda" or "cpu" None defaults to cuda
+        "max_tokens_in_batch":10000
     },
 )
 class FastCorefResolver:
@@ -21,15 +22,16 @@ class FastCorefResolver:
         self,
         nlp,
         name,
-        model_name: str,
+        model_architecture: str,
+        model_path:str,
         device: str,
         max_tokens_in_batch: int
     ):
-        assert model_name in ["FCoref","LingMessCoref"]
-        if model_name == "FCoref": 
-            self.coref_model = FCoref(device=device)
-        elif model_name == "LingMessCoref":
-            self.coref_model = LingMessCoref(device=device)
+        assert model_architecture in ["FCoref","LingMessCoref"]
+        if model_architecture == "FCoref": 
+            self.coref_model = FCoref(model_name_or_path = model_path, device=device)
+        elif model_architecture == "LingMessCoref":
+            self.coref_model = LingMessCoref(model_name_or_path = model_path, device=device)
         self.max_tokens_in_batch = max_tokens_in_batch
         # Register custom extension on the Doc
         if not Doc.has_extension("resolved_text"):
@@ -102,7 +104,7 @@ class FastCorefResolver:
         for i in range(char_span.start + 1, char_span.end):
             resolved[i] = ""
         return resolved
-    def __call__(self, doc: Doc) -> Doc:
+    def __call__(self, doc: Doc, resolve_text=False) -> Doc:
         """
         The function takes a doc object and returns a doc object
         :param doc: Doc
@@ -111,40 +113,36 @@ class FastCorefResolver:
         """
         preds = self.coref_model.predict(texts=[doc.text])
         clusters = preds[0].get_clusters(as_strings=False)
-        resolved = list(tok.text_with_ws for tok in doc)
-        cluster_heads = {}
-        all_spans = [span for cluster in clusters for span in cluster]
-        for cluster in clusters:
-            indices = self._get_span_noun_indices(doc,cluster)
-            if indices:
-                mention_span, mention = self._get_cluster_head(doc, cluster, indices)
-                cluster_heads[str(mention_span)] = mention
-                for coref in cluster:
-                    if coref != mention and not self._is_containing_other_spans(coref, all_spans):
-                        self._core_logic_part(doc, coref, resolved, mention_span)
-        doc._.resolved_text = "".join(resolved)
+        if resolve_text:
+            resolved = list(tok.text_with_ws for tok in doc)
+            all_spans = [span for cluster in clusters for span in cluster]
+            for cluster in clusters:
+                indices = self._get_span_noun_indices(doc,cluster)
+                if indices:
+                    mention_span, mention = self._get_cluster_head(doc, cluster, indices)
+                    for coref in cluster:
+                        if coref != mention and not self._is_containing_other_spans(coref, all_spans):
+                            self._core_logic_part(doc, coref, resolved, mention_span)
+            doc._.resolved_text = "".join(resolved)
         doc._.coref_clusters = clusters
         return doc
-    def pipe(self, stream, batch_size=512):
+    def pipe(self, stream, batch_size=512, resolve_text=False):
         for docs in util.minibatch(stream, size=batch_size):
             preds = self.coref_model.predict(
                     texts=[doc.text for doc in docs],max_tokens_in_batch=self.max_tokens_in_batch)
-                    
-            for pred in preds:
+            for idx,pred in enumerate(preds):
                 clusters = pred.get_clusters(as_strings=False)
-                doc = docs[pred.text_idx] #Find document since preds returns random order
-                resolved = list(tok.text_with_ws for tok in doc)
-                cluster_heads = {}
-                all_spans = [span for cluster in clusters for span in cluster]
-                for cluster in clusters:
-                        indices = self._get_span_noun_indices(doc,cluster)
-                        if indices:
-                            mention_span, mention = self._get_cluster_head(doc, cluster, indices)
-                            cluster_heads[str(mention_span)] = mention
-
-                            for coref in cluster:
-                                if coref != mention and not self._is_containing_other_spans(coref, all_spans):
-                                    self._core_logic_part(doc, coref, resolved, mention_span)
-                doc._.resolved_text = "".join(resolved)
+                doc = docs[idx] 
+                if resolve_text:    
+                    resolved = list(tok.text_with_ws for tok in doc)
+                    all_spans = [span for cluster in clusters for span in cluster]
+                    for cluster in clusters:
+                            indices = self._get_span_noun_indices(doc,cluster)
+                            if indices:
+                                mention_span, mention = self._get_cluster_head(doc, cluster, indices)
+                                for coref in cluster:
+                                    if coref != mention and not self._is_containing_other_spans(coref, all_spans):
+                                        self._core_logic_part(doc, coref, resolved, mention_span)
+                    doc._.resolved_text = "".join(resolved)
                 doc._.coref_clusters = clusters
                 yield doc

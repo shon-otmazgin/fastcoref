@@ -6,27 +6,27 @@ texts = ['We are so happy to see you using our coref package. This package is ve
          'Alice goes down the rabbit hole. Where she would discover a new reality beyond her expectations.'
         ]
 
-nlp_fcoref = spacy.load("en_core_web_sm", exclude=["parser", "lemmatizer", "ner", "textcat"]) #Resolving references requires pos tagging
-nlp_fcoref.add_pipe("fastcoref",config={'model_name':'FCoref','device':'cuda:0'})
-# Test __call__
+nlp_fcoref = spacy.load("en_core_web_sm", exclude=["parser", "lemmatizer", "ner", "textcat"]) #Resolving text requires pos tagging
+nlp_fcoref.add_pipe("fastcoref",config={'model_architecture':'FCoref',"model_path":'biu-nlp/f-coref','device':'cuda'})
+# Test __call__ while not returning resolved text
 doc = nlp_fcoref(texts[0])
 print(doc._.resolved_text)
 print(doc._.coref_clusters)
-# Test pipe
-doc_list = nlp_fcoref.pipe(texts)
+# Test pipe while returning resolved text
+doc_list = nlp_fcoref.pipe(texts,component_cfg={"fastcoref":{'resolve_text':True}})
 for doc in doc_list:
     print(doc._.resolved_text)
     print(doc._.coref_clusters)
 
 
-nlp_lingmess = spacy.load("en_core_web_sm", exclude=["parser", "lemmatizer", "ner", "textcat"])#Resolving references requires pos tagging
-nlp_lingmess.add_pipe("fastcoref",config={'model_name':'LingMessCoref','device':'cuda:0'})
-# Test __call__
-doc = nlp_lingmess(texts[0])
+nlp_lingmess = spacy.load("en_core_web_sm", exclude=["parser", "lemmatizer", "ner", "textcat"])#Resolving text requires pos tagging
+nlp_lingmess.add_pipe("fastcoref",config={'model_architecture':'LingMessCoref','model_path':'biu-nlp/lingmess-coref','device':'cuda'})
+# Test __call__ while returning resolved text
+doc = nlp_lingmess(texts[0],component_cfg={"fastcoref":{'resolve_text':True}})
 print(doc._.resolved_text)
 print(doc._.coref_clusters)
-# Test pipe
-doc_list = nlp_lingmess.pipe(texts)
+# Test pipe while not returning resolved text
+doc_list = nlp_lingmess.pipe(texts,component_cfg={"fastcoref":{'resolve_text':False}})
 for doc in doc_list:
     print(doc._.resolved_text)
     print(doc._.coref_clusters)

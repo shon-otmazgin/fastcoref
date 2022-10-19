@@ -175,7 +175,7 @@ class CorefModel(ABC):
 
                 progress_bar.update(n=len(texts))
 
-        return results
+        return sorted(results, key=lambda res: res.text_idx)
 
     def predict(self, texts, max_tokens_in_batch=10000):
         is_str = False
