@@ -33,12 +33,14 @@ class FullyConnectedLayer(Module):
 
 
 class LingMessModel(BertPreTrainedModel):
-    def __init__(self, config, args):
+    def __init__(self, config):
         super().__init__(config)
-        self.max_span_length = args.max_span_length
-        self.top_lambda = args.top_lambda
+        self.max_span_length = config.coref_head['max_span_length']
+        self.top_lambda = config.coref_head['top_lambda']
+        self.ffnn_size = config.coref_head['ffnn_size']
+        self.dropout_prob = config.coref_head['dropout_prob']
         self.hidden_size = config.hidden_size
-        self.ffnn_size = args.ffnn_size
+
         self.num_cats = len(CATEGORIES) + 1                 # +1 for ALL
         self.all_cats_size = self.ffnn_size * self.num_cats
 
@@ -48,15 +50,15 @@ class LingMessModel(BertPreTrainedModel):
         LingMessModel.config_class = base_model.config_class
         setattr(self, self.base_model_prefix, base_model)
 
-        self.start_mention_mlp = FullyConnectedLayer(config, self.hidden_size, self.ffnn_size, args.dropout_prob)
-        self.end_mention_mlp = FullyConnectedLayer(config, self.hidden_size, self.ffnn_size, args.dropout_prob)
+        self.start_mention_mlp = FullyConnectedLayer(config, self.hidden_size, self.ffnn_size, self.dropout_prob)
+        self.end_mention_mlp = FullyConnectedLayer(config, self.hidden_size, self.ffnn_size, self.dropout_prob)
 
         self.mention_start_classifier = Linear(self.ffnn_size, 1)
         self.mention_end_classifier = Linear(self.ffnn_size, 1)
         self.mention_s2e_classifier = Linear(self.ffnn_size, self.ffnn_size)
 
-        self.coref_start_all_mlps = FullyConnectedLayer(config, config.hidden_size, self.all_cats_size, args.dropout_prob)
-        self.coref_end_all_mlps = FullyConnectedLayer(config, config.hidden_size, self.all_cats_size, args.dropout_prob)
+        self.coref_start_all_mlps = FullyConnectedLayer(config, config.hidden_size, self.all_cats_size, self.dropout_prob)
+        self.coref_end_all_mlps = FullyConnectedLayer(config, config.hidden_size, self.all_cats_size, self.dropout_prob)
 
         self.antecedent_s2s_all_weights = nn.Parameter(torch.empty((self.num_cats, self.ffnn_size, self.ffnn_size)))
         self.antecedent_e2e_all_weights = nn.Parameter(torch.empty((self.num_cats, self.ffnn_size, self.ffnn_size)))

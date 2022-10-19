@@ -1,12 +1,12 @@
 import logging
 import torch
 import math
-from util import pad_clusters
+from utilities.util import pad_clusters
 
 logger = logging.getLogger(__name__)
 
 
-class SegmentCollator:
+class LeftOversCollator:
     def __init__(self, tokenizer, device, max_segment_len):
         self.tokenizer = tokenizer
         self.device = device
@@ -43,7 +43,7 @@ class SegmentCollator:
         return batch
 
 
-class LongformerCollator:
+class PadCollator:
     def __init__(self, tokenizer, device):
         self.tokenizer = tokenizer
         self.device = device

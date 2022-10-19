@@ -1,16 +1,14 @@
 import unittest
 
-from fastcoref.f_coref import CorefResult
-
-from fastcoref import FCoref
+from fastcoref import FCoref, CorefResult
 
 
 class TestFCoref(unittest.TestCase):
     def setUp(self) -> None:
         self.test_text = ['We are so happy to see you using our coref package. This package is very fast!',
                           'The man tried to put the boot on his foot but it was too small.']
-        self.model = FCoref(device='cpu')
 
+        self.model = FCoref()
         self.expected_clusters = [[[(0, 2), (33, 36)], [(33, 50), (52, 64)]],
                                   [[(0, 7), (33, 36)], [(33, 41), (46, 48)]]]
         self.expected_clusters_strings = [[['We', 'our'], ['our coref package', 'This package']],
@@ -50,7 +48,6 @@ class TestFCoref(unittest.TestCase):
         for i, res_obj in enumerate(preds):
             self.assertIsInstance(res_obj, CorefResult)
             self.assertListEqual(res_obj.get_clusters(as_strings=False), self.expected_clusters[i])
-
 
     def test_get_logits(self):
         preds = self.model.predict(texts=self.test_text)

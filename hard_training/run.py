@@ -1,12 +1,3 @@
-# import sys
-# from pathlib import Path
-#
-# # setting parent path
-# sys.path.append(str(Path(__file__).parent.parent))
-
-import sys
-sys.path.append('/home/nlp/shon711/fast-coref')
-
 import logging
 import os
 import shutil
@@ -14,13 +5,13 @@ import shutil
 import torch
 from transformers import AutoConfig, AutoTokenizer
 
-from models.modeling_fcoref import FastCorefModel as COREF_CLASS
+from models.modeling_fcoref import FCorefModel as COREF_CLASS
 from training import train
 from utilities import coref_dataset
 from utilities.eval import Evaluator
 from utilities.util import set_seed
 from utilities.cli import parse_args
-from utilities.collate import DynamicBatchSampler, SegmentCollator
+from utilities.collate import DynamicBatchSampler, LeftOversCollator
 from utilities.consts import SUPPORTED_MODELS
 import wandb
 
@@ -58,11 +49,21 @@ def main():
     set_seed(args)
 
     config = AutoConfig.from_pretrained(args.model_name_or_path, cache_dir=args.cache_dir)
-    tokenizer = AutoTokenizer.from_pretrained(args.model_name_or_path, use_fast=True, add_prefix_space=True, cache_dir=args.cache_dir)
+    config.coref_head = {
+        "max_span_length": args.max_span_length,
+        "top_lambda": args.top_lambda,
+        "ffnn_size": args.ffnn_size,
+        "dropout_prob": args.dropout_prob,
+        "max_segment_len": args.max_segment_len
+    }
+
+    tokenizer = AutoTokenizer.from_pretrained(
+        args.model_name_or_path, use_fast=True, add_prefix_space=True, cache_dir=args.cache_dir
+    )
 
     model, loading_info = COREF_CLASS.from_pretrained(
         args.model_name_or_path, output_loading_info=True,
-        config=config, cache_dir=args.cache_dir, args=args
+        config=config, cache_dir=args.cache_dir
     )
 
     if model.base_model_prefix not in SUPPORTED_MODELS:
@@ -84,7 +85,7 @@ def main():
     )
     args.dataset_files = dataset_files
 
-    collator = SegmentCollator(tokenizer=tokenizer, device=args.device, max_segment_len=args.max_segment_len)
+    collator = LeftOversCollator(tokenizer=tokenizer, device=args.device, max_segment_len=args.max_segment_len)
     eval_dataloader = DynamicBatchSampler(
         dataset[args.eval_split],
         collator=collator,
@@ -112,6 +113,7 @@ def main():
     # Evaluation
     results = evaluator.evaluate(model)
 
+    # config.push_to_hub("f-coref", organization='biu-nlp', use_temp_dir=True)
     # model.push_to_hub("f-coref", organization='biu-nlp', use_temp_dir=True)
     # tokenizer.push_to_hub("f-coref", organization='biu-nlp', use_temp_dir=True)
 

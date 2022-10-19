@@ -1,7 +1,8 @@
-from abc import ABC, abstractmethod
+from abc import ABC
 
 import logging
 import torch
+import transformers
 import numpy as np
 from tqdm.auto import tqdm
 from transformers import AutoConfig, AutoTokenizer
@@ -9,29 +10,15 @@ from datasets import Dataset
 import spacy
 from spacy.cli import download
 
-from fastcoref.coref_models.modeling_fcoref import FastCorefModel
+from fastcoref.coref_models.modeling_fcoref import FCorefModel
 from fastcoref.coref_models.modeling_lingmess import LingMessModel
 from fastcoref.utilities.util import set_seed, create_mention_to_antecedent, create_clusters, align_to_char_level, encode
-from fastcoref.utilities.collate import SegmentCollator, DynamicBatchSampler, LongformerCollator
+from fastcoref.utilities.collate import LeftOversCollator, DynamicBatchSampler, PadCollator
 
 # Setup logging
 logger = logging.getLogger(__name__)
 logging.basicConfig(format='%(asctime)s - %(levelname)s - \t %(message)s',
                     datefmt='%m/%d/%Y %H:%M:%S', level=logging.INFO)
-
-
-class CorefArgs:
-    def __init__(self, model_name_or_path, top_lambda, ffnn_size, max_segment_len, max_doc_len):
-        self.model_name_or_path = model_name_or_path
-        self.cache_dir = 'cache'
-        self.top_lambda = top_lambda
-        self.max_span_length = 30
-        self.ffnn_size = ffnn_size
-        self.max_segment_len = max_segment_len
-        self.max_doc_len = max_doc_len
-        self.dropout_prob = 0.3
-        self.device = None
-        self.seed = 42
 
 
 class CorefResult:
@@ -48,7 +35,6 @@ class CorefResult:
 
         return [[self.text[self.char_map[mention][1][0]:self.char_map[mention][1][1]] for mention in cluster]
                 for cluster in self.clusters]
-
 
     def get_logit(self, span_i, span_j):
         if span_i not in self.reverse_char_map:
@@ -75,57 +61,32 @@ class CorefResult:
         return self.__str__()
 
 
-COREF_CLASSES = {
-    'FCoref': FastCorefModel,
-    'LingMessCoref': LingMessModel
-}
+class CorefModel(ABC):
+    def __init__(self, model_name_or_path, coref_class, collator_class, device=None):
+        self.model_name_or_path = model_name_or_path
+        self.device = device
+        self.seed = 42
+        self._set_device()
 
-COREF_COLLATORS = {
-    'FCoref': SegmentCollator,
-    'LingMessCoref': LongformerCollator
-}
-
-COREF_ARGS = {
-    'FCoref': CorefArgs(model_name_or_path='biu-nlp/f-coref', top_lambda=0.25,
-                        ffnn_size=1024, max_segment_len=512, max_doc_len=None),
-
-    'LingMessCoref': CorefArgs(model_name_or_path='biu-nlp/lingmess-coref', top_lambda=0.4,
-                               ffnn_size=2048, max_segment_len=512, max_doc_len=4096),
-}
-
-
-class AutoCoref(ABC):
-    def __init__(self, model_type, device):
-        self.args = COREF_ARGS[model_type]
-        COREF_CLASS = COREF_CLASSES[model_type]
-
-        # Setup CUDA, GPU & distributed training
-        device = torch.device(device if torch.cuda.is_available() else "cpu")
-        self.args.device = device
-        self.args.n_gpu = 1 if device.type == 'cuda' else 0
-        set_seed(self.args)
-
-        config = AutoConfig.from_pretrained(self.args.model_name_or_path, cache_dir=self.args.cache_dir)
+        config = AutoConfig.from_pretrained(self.model_name_or_path)
+        self.max_segment_len = config.coref_head['max_segment_len']
+        self.max_doc_len = config.coref_head['max_doc_len'] if 'max_doc_len' in config.coref_head else None
 
         self.tokenizer = AutoTokenizer.from_pretrained(
-            self.args.model_name_or_path, use_fast=True,
-            add_prefix_space=True, cache_dir=self.args.cache_dir
+            self.model_name_or_path, use_fast=True,
+            add_prefix_space=True, verbose=False
         )
 
-        self.collator = COREF_COLLATORS[model_type](
-            tokenizer=self.tokenizer, device=self.args.device,
-            max_segment_len=self.args.max_segment_len
-        )
-
-        self.model = COREF_CLASS.from_pretrained(
-            self.args.model_name_or_path, config=config,
-            cache_dir=self.args.cache_dir, args=self.args
-        )
-        self.model.to(device)
-
-        t_params, h_params = [p / 1000000 for p in self.model.num_parameters()]
-        logger.info(f'Model Parameters: {t_params + h_params:.1f}M, '
-                    f'Transformer: {t_params:.1f}M, Coref head: {h_params:.1f}M')
+        if collator_class == PadCollator:
+            self.collator = PadCollator(tokenizer=self.tokenizer, device=self.device)
+        elif collator_class == LeftOversCollator:
+            self.collator = LeftOversCollator(
+                tokenizer=self.tokenizer, device=self.device,
+                max_segment_len=config.coref_head['max_segment_len']
+            )
+        else:
+            raise NotImplementedError(f"Class collator {type(collator_class)} is not supported! "
+                                      f"only LeftOversCollator or PadCollator supported")
 
         try:
             self.nlp = spacy.load("en_core_web_sm", exclude=["tagger", "parser", "lemmatizer", "ner", "textcat"])
@@ -134,7 +95,28 @@ class AutoCoref(ABC):
             download('en_core_web_sm')
             self.nlp = spacy.load("en_core_web_sm", exclude=["tagger", "parser", "lemmatizer", "ner", "textcat"])
 
-    def _prepare_dataset(self, texts):
+        self.model, loading_info = coref_class.from_pretrained(
+            self.model_name_or_path, config=config,
+            output_loading_info=True
+        )
+        self.model.to(self.device)
+
+        for key, val in loading_info.items():
+            logger.info(f'{key}: {list(set(val) - set(["longformer.embeddings.position_ids"]))}')
+        t_params, h_params = [p / 1000000 for p in self.model.num_parameters()]
+        logger.info(f'Model Parameters: {t_params + h_params:.1f}M, '
+                    f'Transformer: {t_params:.1f}M, Coref head: {h_params:.1f}M')
+
+        set_seed(self)
+        transformers.logging.set_verbosity_error()
+
+    def _set_device(self):
+        if self.device is None:
+            self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
+        self.device = torch.device(self.device)
+        self.n_gpu = torch.cuda.device_count()
+
+    def _create_dataset(self, texts):
         logger.info(f'Tokenize {len(texts)} texts...')
 
         dataset = Dataset.from_dict({'text': texts})
@@ -150,8 +132,8 @@ class AutoCoref(ABC):
             dataset,
             collator=self.collator,
             max_tokens=max_tokens_in_batch,
-            max_segment_len=self.args.max_segment_len,
-            max_doc_len=self.args.max_doc_len
+            max_segment_len=self.max_segment_len,
+            max_doc_len=self.max_doc_len
         )
 
         return dataloader
@@ -162,11 +144,10 @@ class AutoCoref(ABC):
 
         results = []
         with tqdm(desc="Inference", total=len(dataloader.dataset)) as progress_bar:
-            for idx, batch in enumerate(dataloader):
+            for batch in dataloader:
                 texts = batch['text']
                 subtoken_map = batch['subtoken_map']
-                new_token_map = batch['new_token_map']
-                token_to_char = batch['token_to_char']
+                token_to_char = batch['offset_mapping']
 
                 with torch.no_grad():
                     outputs = self.model(batch, return_all_outputs=True)
@@ -181,7 +162,7 @@ class AutoCoref(ABC):
                     predicted_clusters = create_clusters(doc_mention_to_antecedent)
 
                     char_map, reverse_char_map = align_to_char_level(
-                        span_starts[i], span_ends[i], subtoken_map[i], new_token_map[i], token_to_char[i]
+                        span_starts[i], span_ends[i], token_to_char[i], subtoken_map[i]
                     )
 
                     res = CorefResult(
@@ -203,24 +184,23 @@ class AutoCoref(ABC):
         if not isinstance(texts, list):
             raise ValueError(f'texts argument expected to be a list of strings, or one single text string. provided {type(texts)}')
 
-        dataset = self._prepare_dataset(texts=texts)
+        dataset = self._create_dataset(texts=texts)
         dataloader = self._prepare_batches(dataset, max_tokens_in_batch)
 
+        preds = self._inference(dataloader=dataloader)
         if is_str:
-            return self._inference(dataloader=dataloader)[0]
-        return self._inference(dataloader=dataloader)
+            return preds[0]
+        return preds
 
 
-class FCoref(AutoCoref):
+class FCoref(CorefModel):
+    def __init__(self, model_name_or_path='biu-nlp/f-coref', device=None):
+        super().__init__(model_name_or_path, FCorefModel, LeftOversCollator, device)
 
-    def __init__(self, device='cpu'):
-        super().__init__('FCoref', device)
 
-
-class LingMessCoref(AutoCoref):
-
-    def __init__(self, device='cpu'):
-        super().__init__('LingMessCoref', device)
+class LingMessCoref(CorefModel):
+    def __init__(self, model_name_or_path='biu-nlp/lingmess-coref', device=None):
+        super().__init__(model_name_or_path, LingMessModel, PadCollator, device)
 
 
 

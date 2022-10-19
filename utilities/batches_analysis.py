@@ -3,7 +3,7 @@ from transformers import AutoTokenizer
 from tqdm import tqdm
 
 from utilities import coref_dataset
-from utilities.collate import SegmentCollator, DynamicBatchSampler
+from utilities.collate import LeftOversCollator, DynamicBatchSampler
 
 tokenizer = AutoTokenizer.from_pretrained('distilroberta-base', cache_dir='cache', use_fast=True, add_prefix_space=True)
 dataset, dataset_files = coref_dataset.create(
@@ -12,7 +12,7 @@ dataset, dataset_files = coref_dataset.create(
 )
 device = torch.device('cpu')
 
-collator = SegmentCollator(tokenizer=tokenizer, device=device, max_segment_len=512)
+collator = LeftOversCollator(tokenizer=tokenizer, device=device, max_segment_len=512)
 sampler = DynamicBatchSampler(
     dataset['train'],
     collator=collator,

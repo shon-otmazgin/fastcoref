@@ -123,4 +123,24 @@ python run.py \
       --device=cuda:0
 ```
 
+After finish training your own model, push the model the huggingface hub (or keep it local), and load your model:
+```python
+from fastcoref import FCoref
+
+model = FCoref(
+   model_name_or_path='your-fast-coref-model-path',
+   device='cuda:0'
+)
+```
+Or in case of `LingMessCoref` model:
+```python
+model = LingMessCoref(
+   model_name_or_path='your-fast-coref-model-path',
+   device='cuda:0'
+)
+```
+
+Or in case of LingMess model:
+
+
 ## Citation

@@ -1,15 +1,13 @@
 import unittest
 
-from fastcoref.f_coref import CorefResult
-
-from fastcoref import LingMessCoref
+from fastcoref import LingMessCoref, CorefResult
 
 
 class TestLingMessCoref(unittest.TestCase):
     def setUp(self) -> None:
         self.test_text = ['We are so happy to see you using our coref package. This package is very fast!',
                           'The man tried to put the boot on his foot but it was too small.']
-        self.model = LingMessCoref(device='cpu')
+        self.model = LingMessCoref()
 
         self.expected_clusters = [[[(0, 2), (33, 36)], [(33, 50), (52, 64)]],
                                   [[(0, 7), (33, 36)], [(21, 29), (46, 48)]]]

@@ -8,9 +8,8 @@ from datasets.fingerprint import Hasher
 from datasets import Dataset, DatasetDict
 from tqdm import tqdm
 
-from utilities import util
-import consts
-from utilities.collate import SegmentCollator, LongformerCollator
+from utilities import util, consts
+from utilities.collate import LeftOversCollator, PadCollator
 
 logger = logging.getLogger(__name__)
 
@@ -95,9 +94,9 @@ def create(tokenizer, train_file=None, dev_file=None, test_file=None, cache_dir=
 
 def create_batches(sampler, dataset_files, cache_dir='cache'):
     key = Hasher.hash(dataset_files)
-    if isinstance(sampler.collator, SegmentCollator):
+    if isinstance(sampler.collator, LeftOversCollator):
         key += '_segment_collator'
-    elif isinstance(sampler.collator, LongformerCollator):
+    elif isinstance(sampler.collator, PadCollator):
         key += '_longformer_collator'
     else:
         raise NotImplementedError('this collator not implemented!')

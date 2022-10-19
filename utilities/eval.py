@@ -3,8 +3,8 @@ import numpy as np
 import torch
 import time
 
-from metrics import CorefEvaluator, MentionEvaluator
-from util import create_clusters, create_mention_to_antecedent, update_metrics, \
+from utilities.metrics import CorefEvaluator, MentionEvaluator
+from utilities.util import create_clusters, create_mention_to_antecedent, update_metrics, \
     output_evaluation_metrics, write_prediction_to_jsonlines
 from tqdm.auto import tqdm
 

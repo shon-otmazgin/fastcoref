@@ -10,52 +10,64 @@ logger = logging.getLogger(__name__)
 
 def encode(batch, tokenizer, nlp):
     tokenized_texts = tokenize_with_spacy(batch['text'], nlp)
-    encoded_batch = tokenizer(tokenized_texts['tokens'], add_special_tokens=True, is_split_into_words=True)
+    encoded_batch = tokenizer(
+        tokenized_texts['tokens'], add_special_tokens=True, is_split_into_words=True,
+        return_length=True, return_attention_mask=False
+    )
     return {
+        'tokens': tokenized_texts['tokens'],
         'input_ids': encoded_batch['input_ids'],
-        'attention_mask': encoded_batch['attention_mask'],
-        'length': [len(ids) for ids in encoded_batch['input_ids']],
-        'new_token_map': [list(range(len(tokens))) for tokens in tokenized_texts['tokens']],       # preparation for speaker in the future
+        'length': encoded_batch['length'],
+
+        # bpe token -> spacy tokens
         'subtoken_map': [enc.word_ids for enc in encoded_batch.encodings],
-        **tokenized_texts
+        # this is a can use for speaker info TODO: better name!
+        'new_token_map': [list(range(len(tokens))) for tokens in tokenized_texts['tokens']],
+        # spacy tokens -> text char
+        'offset_mapping': tokenized_texts['offset_mapping']
     }
 
 
 def tokenize_with_spacy(texts, nlp):
     def handle_doc(doc):
         tokens = []
-        token_to_char = []
+        offset_mapping = []
         for tok in doc:
             tokens.append(tok.text)
-            token_to_char.append((tok.idx, tok.idx + len(tok.text)))
-        return tokens, token_to_char
+            offset_mapping.append((tok.idx, tok.idx + len(tok.text)))
+        return tokens, offset_mapping
 
-    tokenized_texts = {'tokens': [], 'token_to_char': []}
-    for doc in tqdm(nlp.pipe(texts)):
-        tokens, token_to_char = handle_doc(doc)
+    tokenized_texts = {'tokens': [], 'offset_mapping': []}
+    docs = nlp.pipe(texts)
+    for doc in docs:
+        tokens, offset_mapping = handle_doc(doc)
         tokenized_texts['tokens'].append(tokens)
-        tokenized_texts['token_to_char'].append(token_to_char)
+        tokenized_texts['offset_mapping'].append(offset_mapping)
 
     return tokenized_texts
 
 
-def align_to_char_level(span_starts, span_ends, subtoken_map, new_token_map, token_to_char):
+def align_to_char_level(span_starts, span_ends, token_to_char, subtoken_map=None, new_token_map=None):
     char_map = {}
     reverse_char_map = {}
     for idx, (start, end) in enumerate(zip(span_starts, span_ends)):
+        new_start, new_end = start.copy(), end.copy()
+
         try:
-            new_start, new_end = subtoken_map[start], subtoken_map[end]
+            if subtoken_map is not None:
+                new_start, new_end = subtoken_map[new_start], subtoken_map[new_end]
+                if new_start is None or new_end is None:
+                    char_map[(start, end)] = None, None
+                    continue
+            if new_token_map is not None:
+                new_start, new_end = new_token_map[new_start], new_token_map[new_end]
+            new_start, new_end = token_to_char[new_start][0], token_to_char[new_end][1]
+            char_map[(start, end)] = idx, (new_start, new_end)
+            reverse_char_map[(new_start, new_end)] = idx, (start, end)
         except IndexError:
             # this is padding index
             char_map[(start, end)] = None, None
             continue
-        if new_start is None or new_end is None:
-            char_map[(start, end)] = None, None
-            continue
-        new_start, new_end = new_token_map[new_start], new_token_map[new_end]
-        new_start, new_end = token_to_char[new_start][0], token_to_char[new_end][1]
-        char_map[(start, end)] = idx, (new_start, new_end)
-        reverse_char_map[(new_start, new_end)] = idx, (start, end)
 
     return char_map, reverse_char_map
 
