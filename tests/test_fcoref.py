@@ -54,4 +54,6 @@ class TestFCoref(unittest.TestCase):
         self.assertIsInstance(preds, list)
 
         self.assertGreater(preds[0].get_logit(span_i=(33, 50), span_j=(52, 64)), 0)
-        self.assertGreater(preds[1].get_logit(span_i=(21, 29), span_j=(46, 48)), 0)
+        with self.assertRaises(ValueError) as exc:
+            logit = preds[1].get_logit(span_i=(21, 29), span_j=(46, 48))
+        self.assertEqual(str(exc.exception), f'span_i="the boot" is not an entity in this model!')

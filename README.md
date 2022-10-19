@@ -30,7 +30,7 @@ The return value of the function is a list of `CorefResult` objects, from which 
 ```python
 from fastcoref import FCoref
 
-model = FCoref()
+model = FCoref(device='cuda:0')
 
 preds = model.predict(
    texts=['We are so happy to see you using our coref package. This package is very fast!']
@@ -74,7 +74,7 @@ To use the larger but more accurate [`LingMess`](https://huggingface.co/biu-nlp/
 ```python
 from fastcoref import LingMessCoref
 
-model = LingMessCoref()
+model = LingMessCoref(device='cuda:0')
 ```
 
 ## Distil your own coref model
@@ -123,17 +123,13 @@ python run.py \
       --device=cuda:0
 ```
 
-After finish training your own model push the model the huggingface hub (or keep it local), and load the model with your training args.:
+After finish training your own model, push the model the huggingface hub (or keep it local), and load your model:
 ```python
 from fastcoref import FCoref, CorefArgs
 
-args = CorefArgs(
-   model_name_or_path='your-fast-coref-model-path',
-   device='cpu',
-   ffnn_size=3072,
-   ...
+model = FCoref(
+   model_name_or_path='your-fast-coref-model-path'
 )
-model = FCoref(args=args)
 ```
 
 ## Citation
