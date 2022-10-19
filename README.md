@@ -5,6 +5,7 @@ The `fastcoref` Python package provides an easy and fast API for coreference inf
 - [Installation](#Installation)
 - [Demo](#demo)
 - [Quick start](#quick-start)
+- [Spacy component](#spacy-component)
 - [Training](#distil-your-own-coref-model)
 - [Citation](#citation)
 
@@ -76,6 +77,24 @@ from fastcoref import LingMessCoref
 
 model = LingMessCoref(device='cuda:0')
 ```
+## Spacy component
+The package also provides a custom Spacy component that can be plugged into a Spacy(V3) pipeline. The custom component can be added to your pipeline using the name "fastcoref" after importing spacy_component. You can choose the model_architecture as either FCoref or LingMessCoref. If you'd like to use your own trained version you can specify the model_path parameter pointing to your model. The example below shows how to use the pre-trained FCoref model.
+```python
+from fastcoref import spacy_component
+texts = ['We are so happy to see you using our coref package. This package is very fast!',
+         'Glad to see you are using the spacy component as well. As it is a new feature!'
+        ]
+nlp = spacy.load("en_core_web_sm", exclude=["parser", "lemmatizer", "ner", "textcat"])
+nlp.add_pipe("fastcoref",config={'model_architecture':'FCoref',"model_path":'biu-nlp/f-coref','device':'cuda'})
+```
+After adding the model to your Spacy pipeline, the coreference clusters derived by the model can be accessed through the .\_.coref_clusters attribute of the outputted documents. It is also possible to access a version of the text with the coreferences already resolved through the .\_.resolved_text attribute. However this second attribute requires you to pass an optional resolved_text parameter as True to the component config when passing the documents through the pipeline. Important things to note are; Resolving the text requires the tagger component to be in the pipeline and is slower than just extracting the coreference clusters implementation-wise.
+```python
+
+doc_list = nlp.pipe(texts,component_cfg={"fastcoref":{'resolve_text':True}})
+for doc in doc_list:
+   print(doc._.resolved_text)
+   print(doc._.coref_clusters)
+```
 
 ## Distil your own coref model
 On top of the provided models, the package also provides the ability to train and distill coreference models on your own data, opening the possibility for fast and accurate coreference models for additional languages and domains.
@@ -139,8 +158,6 @@ model = LingMessCoref(
    device='cuda:0'
 )
 ```
-
-Or in case of LingMess model:
 
 
 ## Citation

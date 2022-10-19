@@ -22,12 +22,13 @@ logging.basicConfig(format='%(asctime)s - %(levelname)s - \t %(message)s',
 
 
 class CorefResult:
-    def __init__(self, text, clusters, char_map, reverse_char_map, coref_logit):
+    def __init__(self, text, clusters, char_map, reverse_char_map, coref_logit, text_idx):
         self.text = text
         self.clusters = clusters
         self.char_map = char_map
         self.reverse_char_map = reverse_char_map
         self.coref_logit = coref_logit
+        self.text_idx = text_idx
 
     def get_clusters(self, as_strings=True):
         if not as_strings:
@@ -118,8 +119,8 @@ class CorefModel(ABC):
 
     def _create_dataset(self, texts):
         logger.info(f'Tokenize {len(texts)} texts...')
-
-        dataset = Dataset.from_dict({'text': texts})
+        # Save original text ordering for later use
+        dataset = Dataset.from_dict({'text': texts,'idx':range(len(texts))})
         dataset = dataset.map(
             encode, batched=True, batch_size=10000,
             fn_kwargs={'tokenizer': self.tokenizer, 'nlp': self.nlp}
@@ -148,7 +149,7 @@ class CorefModel(ABC):
                 texts = batch['text']
                 subtoken_map = batch['subtoken_map']
                 token_to_char = batch['offset_mapping']
-
+                idxs = batch['idx']
                 with torch.no_grad():
                     outputs = self.model(batch, return_all_outputs=True)
 
@@ -168,13 +169,13 @@ class CorefModel(ABC):
                     res = CorefResult(
                         text=texts[i], clusters=predicted_clusters,
                         char_map=char_map, reverse_char_map=reverse_char_map,
-                        coref_logit=coref_logits[i]
+                        coref_logit=coref_logits[i], text_idx = idxs[i]
                     )
                     results.append(res)
 
                 progress_bar.update(n=len(texts))
 
-        return results
+        return sorted(results, key=lambda res: res.text_idx)
 
     def predict(self, texts, max_tokens_in_batch=10000):
         is_str = False

@@ -1,4 +1,4 @@
-from fastcoref import FCoref, LingMessCoref, CorefArgs
+from fastcoref import FCoref, LingMessCoref
 
 texts = ['We are so happy to see you using our coref package. This package is very fast!',
          'The man tried to put the boot on his foot but it was too small.',
