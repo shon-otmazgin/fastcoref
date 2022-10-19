@@ -1,7 +1,7 @@
 import logging
 import torch
 import math
-from util import pad_clusters
+from utilities.util import pad_clusters
 
 logger = logging.getLogger(__name__)
 

@@ -5,7 +5,7 @@
 # sys.path.append(str(Path(__file__).parent.parent))
 
 import sys
-sys.path.append('/home/nlp/shon711/fast-coref')
+sys.path.append('/home/nlp/shon711/fastcoref')
 
 import logging
 import os
@@ -121,6 +121,7 @@ def main():
     # Evaluation
     results = evaluator.evaluate(model)
 
+    # config.push_to_hub("f-coref", organization='biu-nlp', use_temp_dir=True)
     # model.push_to_hub("f-coref", organization='biu-nlp', use_temp_dir=True)
     # tokenizer.push_to_hub("f-coref", organization='biu-nlp', use_temp_dir=True)
 
