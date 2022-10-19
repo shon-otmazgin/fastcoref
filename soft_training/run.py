@@ -17,7 +17,7 @@ from soft_training.training import train
 from utilities.eval import Evaluator
 from utilities.util import set_seed
 from utilities.cli import parse_args
-from utilities.collate import LongformerCollator, DynamicBatchSampler, SegmentCollator
+from utilities.collate import PadCollator, DynamicBatchSampler, LeftOversCollator
 import wandb
 
 # Setup logging
@@ -93,7 +93,7 @@ def main():
     )
     args.dataset_files = dataset_files
 
-    student_collator = SegmentCollator(tokenizer=tokenizer, device=args.device, max_segment_len=args.max_segment_len)
+    student_collator = LeftOversCollator(tokenizer=tokenizer, device=args.device, max_segment_len=args.max_segment_len)
     eval_dataloader = DynamicBatchSampler(
         dataset[args.eval_split],
         collator=student_collator,
@@ -117,7 +117,7 @@ def main():
         ).shuffle(seed=args.seed)
         logger.info(student_train_batches)
 
-        teacher_collator = LongformerCollator(tokenizer=tokenizer, device=args.device)
+        teacher_collator = PadCollator(tokenizer=tokenizer, device=args.device)
         teacher_train_sampler = DynamicBatchSampler(
             dataset['train'],
             collator=teacher_collator,

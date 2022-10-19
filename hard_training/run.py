@@ -1,12 +1,3 @@
-# import sys
-# from pathlib import Path
-#
-# # setting parent path
-# sys.path.append(str(Path(__file__).parent.parent))
-
-import sys
-sys.path.append('/home/nlp/shon711/fastcoref')
-
 import logging
 import os
 import shutil
@@ -20,7 +11,7 @@ from utilities import coref_dataset
 from utilities.eval import Evaluator
 from utilities.util import set_seed
 from utilities.cli import parse_args
-from utilities.collate import DynamicBatchSampler, SegmentCollator
+from utilities.collate import DynamicBatchSampler, LeftOversCollator
 from utilities.consts import SUPPORTED_MODELS
 import wandb
 
@@ -94,7 +85,7 @@ def main():
     )
     args.dataset_files = dataset_files
 
-    collator = SegmentCollator(tokenizer=tokenizer, device=args.device, max_segment_len=args.max_segment_len)
+    collator = LeftOversCollator(tokenizer=tokenizer, device=args.device, max_segment_len=args.max_segment_len)
     eval_dataloader = DynamicBatchSampler(
         dataset[args.eval_split],
         collator=collator,
