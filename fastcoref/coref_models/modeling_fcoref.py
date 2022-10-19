@@ -31,24 +31,23 @@ class FullyConnectedLayer(Module):
 
 
 class FCorefModel(BertPreTrainedModel):
-    def __init__(self, config, args):
+    def __init__(self, config):
         super().__init__(config)
-        self.max_span_length = args.max_span_length
-        self.top_lambda = args.top_lambda
-        self.ffnn_size = args.ffnn_size
-        self.do_mlps = self.ffnn_size > 0
-        self.ffnn_size = self.ffnn_size if self.do_mlps else config.hidden_size
+        self.max_span_length = config.coref_head['max_span_length']
+        self.top_lambda = config.coref_head['top_lambda']
+        self.ffnn_size = config.coref_head['ffnn_size']
+        self.dropout_prob = config.coref_head['dropout_prob']
 
         base_model = AutoModel.from_config(config)
         FCorefModel.base_model_prefix = base_model.base_model_prefix
         FCorefModel.config_class = base_model.config_class
         setattr(self, self.base_model_prefix, base_model)
 
-        self.start_mention_mlp = FullyConnectedLayer(config, config.hidden_size, self.ffnn_size, args.dropout_prob) if self.do_mlps else None
-        self.end_mention_mlp = FullyConnectedLayer(config, config.hidden_size, self.ffnn_size, args.dropout_prob) if self.do_mlps else None
+        self.start_mention_mlp = FullyConnectedLayer(config, config.hidden_size, self.ffnn_size, self.dropout_prob)
+        self.end_mention_mlp = FullyConnectedLayer(config, config.hidden_size, self.ffnn_size, self.dropout_prob)
 
-        self.start_coref_mlp = FullyConnectedLayer(config, config.hidden_size, self.ffnn_size, args.dropout_prob) if self.do_mlps else None
-        self.end_coref_mlp = FullyConnectedLayer(config, config.hidden_size, self.ffnn_size, args.dropout_prob) if self.do_mlps else None
+        self.start_coref_mlp = FullyConnectedLayer(config, config.hidden_size, self.ffnn_size, self.dropout_prob)
+        self.end_coref_mlp = FullyConnectedLayer(config, config.hidden_size, self.ffnn_size, self.dropout_prob)
 
         self.mention_start_classifier = Linear(self.ffnn_size, 1)
         self.mention_end_classifier = Linear(self.ffnn_size, 1)
@@ -245,11 +244,11 @@ class FCorefModel(BertPreTrainedModel):
         sequence_output, attention_mask = self.forward_transformer(batch)
 
         # Compute representations
-        start_mention_reps = self.start_mention_mlp(sequence_output) if self.do_mlps else sequence_output
-        end_mention_reps = self.end_mention_mlp(sequence_output) if self.do_mlps else sequence_output
+        start_mention_reps = self.start_mention_mlp(sequence_output)
+        end_mention_reps = self.end_mention_mlp(sequence_output)
 
-        start_coref_reps = self.start_coref_mlp(sequence_output) if self.do_mlps else sequence_output
-        end_coref_reps = self.end_coref_mlp(sequence_output) if self.do_mlps else sequence_output
+        start_coref_reps = self.start_coref_mlp(sequence_output)
+        end_coref_reps = self.end_coref_mlp(sequence_output)
 
         # mention scores
         mention_logits = self._calc_mention_logits(start_mention_reps, end_mention_reps)

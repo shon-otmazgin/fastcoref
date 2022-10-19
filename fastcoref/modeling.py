@@ -121,21 +121,27 @@ class CorefResult:
 
 
 class CorefModel(ABC):
-    def __init__(self, coref_class, collator_class, args):
-        self.args = args
+    def __init__(self, model_name_or_path, coref_class, collator_class, device=None):
+        self.model_name_or_path = model_name_or_path
+        self.device = device
+        self.seed = 42
         self._set_device()
 
+        config = AutoConfig.from_pretrained(self.model_name_or_path)
+        self.max_segment_len = config.coref_head['max_segment_len']
+        self.max_doc_len = config.coref_head['max_doc_len'] if 'max_doc_len' in config.coref_head else None
+
         self.tokenizer = AutoTokenizer.from_pretrained(
-            self.args.model_name_or_path, use_fast=True,
-            add_prefix_space=True, cache_dir=self.args.cache_dir, verbose=False
+            self.model_name_or_path, use_fast=True,
+            add_prefix_space=True, verbose=False
         )
 
         if collator_class == PadCollator:
-            self.collator = PadCollator(tokenizer=self.tokenizer, device=self.args.device)
+            self.collator = PadCollator(tokenizer=self.tokenizer, device=self.device)
         elif collator_class == LeftOversCollator:
             self.collator = LeftOversCollator(
-                tokenizer=self.tokenizer, device=self.args.device,
-                max_segment_len=self.args.max_segment_len
+                tokenizer=self.tokenizer, device=self.device,
+                max_segment_len=config.coref_head['max_segment_len']
             )
         else:
             raise NotImplementedError(f"Class collator {type(collator_class)} is not supported! "
@@ -148,13 +154,11 @@ class CorefModel(ABC):
             download('en_core_web_sm')
             self.nlp = spacy.load("en_core_web_sm", exclude=["tagger", "parser", "lemmatizer", "ner", "textcat"])
 
-        config = AutoConfig.from_pretrained(self.args.model_name_or_path, cache_dir=self.args.cache_dir)
         self.model, loading_info = coref_class.from_pretrained(
-            self.args.model_name_or_path, config=config,
-            cache_dir=self.args.cache_dir, args=self.args,
+            self.model_name_or_path, config=config,
             output_loading_info=True
         )
-        self.model.to(self.args.device)
+        self.model.to(self.device)
 
         for key, val in loading_info.items():
             logger.info(f'{key}: {list(set(val) - set(["longformer.embeddings.position_ids"]))}')
@@ -162,14 +166,14 @@ class CorefModel(ABC):
         logger.info(f'Model Parameters: {t_params + h_params:.1f}M, '
                     f'Transformer: {t_params:.1f}M, Coref head: {h_params:.1f}M')
 
-        set_seed(self.args)
+        set_seed(self)
         transformers.logging.set_verbosity_error()
 
     def _set_device(self):
-        if self.args.device is None:
-            self.args.device = 'cuda' if torch.cuda.is_available() else 'cpu'
-        self.args.device = torch.device(self.args.device)
-        self.args.n_gpu = torch.cuda.device_count()
+        if self.device is None:
+            self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
+        self.device = torch.device(self.device)
+        self.n_gpu = torch.cuda.device_count()
 
     def _create_dataset(self, texts):
         logger.info(f'Tokenize {len(texts)} texts...')
@@ -187,8 +191,8 @@ class CorefModel(ABC):
             dataset,
             collator=self.collator,
             max_tokens=max_tokens_in_batch,
-            max_segment_len=self.args.max_segment_len,
-            max_doc_len=self.args.max_doc_len
+            max_segment_len=self.max_segment_len,
+            max_doc_len=self.max_doc_len
         )
 
         return dataloader
@@ -249,13 +253,8 @@ class CorefModel(ABC):
 
 
 class FCoref(CorefModel):
-    def __init__(self, args: CorefArgs = None):
-        if args is None:
-            args = CorefArgs(
-                model_name_or_path='biu-nlp/f-coref', ffnn_size=1024,
-                cache_dir='cache', device=None
-            )
-        super().__init__(FCorefModel, LeftOversCollator, args)
+    def __init__(self, model_name_or_path='biu-nlp/f-coref', device=None):
+        super().__init__(model_name_or_path, FCorefModel, LeftOversCollator, device)
 
 
 class LingMessCoref(CorefModel):
