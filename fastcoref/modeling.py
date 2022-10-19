@@ -21,65 +21,6 @@ logging.basicConfig(format='%(asctime)s - %(levelname)s - \t %(message)s',
                     datefmt='%m/%d/%Y %H:%M:%S', level=logging.INFO)
 
 
-class CorefArgs:
-    def __init__(self,
-                 model_name_or_path: str,
-                 output_dir: str = None,
-                 overwrite_output_dir: bool = False,
-                 train_file: str = None,
-                 dev_file: str = None,
-                 test_file: str = None,
-                 output_file: str = None,
-                 learning_rate: float = 1e-5,
-                 head_learning_rate: float = 3e-4,
-                 dropout_prob: float = 0.3,
-                 weight_decay: float = 0.01,
-                 adam_beta1: float = 0.9,
-                 adam_beta2: float = 0.98,
-                 adam_epsilon: float = 1e-6,
-                 epochs: float = 3,
-                 ffnn_size: int = 1024,
-                 logging_steps: int = 500,
-                 eval_steps: int = 500,
-                 device: str = None,
-                 seed: int = 42,
-                 max_span_length: int = 30,
-                 top_lambda: float = 0.4,
-                 cache_dir: str = 'cache',
-                 experiment_name: str = None,
-                 max_segment_len: int = 512,
-                 max_doc_len: int = None,
-                 max_tokens_in_batch: int = 5000):
-        self.max_tokens_in_batch = max_tokens_in_batch
-        self.max_doc_len = max_doc_len
-        self.max_segment_len = max_segment_len
-        self.experiment_name = experiment_name
-        self.cache_dir = cache_dir
-        self.top_lambda = top_lambda
-        self.device = device
-        self.n_gpu = None
-        self.max_span_length = max_span_length
-        self.seed = seed
-        self.eval_steps = eval_steps
-        self.logging_steps = logging_steps
-        self.ffnn_size = ffnn_size
-        self.epochs = epochs
-        self.adam_epsilon = adam_epsilon
-        self.adam_beta2 = adam_beta2
-        self.adam_beta1 = adam_beta1
-        self.weight_decay = weight_decay
-        self.dropout_prob = dropout_prob
-        self.head_learning_rate = head_learning_rate
-        self.learning_rate = learning_rate
-        self.output_file = output_file
-        self.test_file = test_file
-        self.dev_file = dev_file
-        self.train_file = train_file
-        self.overwrite_output_dir = overwrite_output_dir
-        self.output_dir = output_dir
-        self.model_name_or_path = model_name_or_path
-
-
 class CorefResult:
     def __init__(self, text, clusters, char_map, reverse_char_map, coref_logit):
         self.text = text
@@ -258,13 +199,8 @@ class FCoref(CorefModel):
 
 
 class LingMessCoref(CorefModel):
-    def __init__(self, args: CorefArgs = None):
-        if args is None:
-            args = CorefArgs(
-                model_name_or_path='biu-nlp/lingmess-coref', ffnn_size=2048, max_doc_len=4096,
-                cache_dir='cache', device=None
-            )
-        super().__init__(LingMessModel, PadCollator, args)
+    def __init__(self, model_name_or_path='biu-nlp/lingmess-coref', device=None):
+        super().__init__(model_name_or_path, LingMessModel, PadCollator, device)
 
 
 

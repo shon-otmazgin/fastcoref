@@ -14,11 +14,11 @@ for p in preds:
     print(p.get_clusters(as_strings=False))
 print(preds[0].get_logit(span_i=(33, 50), span_j=(52, 64)))
 
-# model = LingMessCoref()
-# preds = model.predict(texts=texts, max_tokens_in_batch=5000)
-#
-# for p in preds:
-#     print(p.get_clusters())
-#     print(p.get_clusters(as_strings=False))
-# print(preds[0].get_logit(span_i=(33, 50), span_j=(52, 64)))
-# print(preds[1].get_logit(span_i=(21, 29), span_j=(46, 48)))
+model = LingMessCoref(device='cpu')
+preds = model.predict(texts=texts, max_tokens_in_batch=5000)
+
+for p in preds:
+    print(p.get_clusters())
+    print(p.get_clusters(as_strings=False))
+print(preds[0].get_logit(span_i=(33, 50), span_j=(52, 64)))
+print(preds[1].get_logit(span_i=(21, 29), span_j=(46, 48)))

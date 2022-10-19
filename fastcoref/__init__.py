@@ -1,1 +1,1 @@
-from .modeling import FCoref, LingMessCoref, CorefArgs, CorefResult
+from .modeling import FCoref, LingMessCoref, CorefResult

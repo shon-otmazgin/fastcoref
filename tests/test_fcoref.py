@@ -1,23 +1,18 @@
 import unittest
 
-from fastcoref import FCoref, CorefArgs, CorefResult
+from fastcoref import FCoref, CorefResult
 
 
 class TestFCoref(unittest.TestCase):
     def setUp(self) -> None:
         self.test_text = ['We are so happy to see you using our coref package. This package is very fast!',
                           'The man tried to put the boot on his foot but it was too small.']
-        args = CorefArgs(
-            model_name_or_path='biu-nlp/f-coref',
-            device='cpu',
-            max_tokens_in_batch=7000
-        )
-        self.model = FCoref(args=args)
 
+        self.model = FCoref()
         self.expected_clusters = [[[(0, 2), (33, 36)], [(33, 50), (52, 64)]],
-                                  [[(0, 7), (33, 36)], [(21, 29), (46, 48)]]]
+                                  [[(0, 7), (33, 36)], [(33, 41), (46, 48)]]]
         self.expected_clusters_strings = [[['We', 'our'], ['our coref package', 'This package']],
-                                          [['The man', 'his'], ['the boot', 'it']]]
+                                          [['The man', 'his'], ['his foot', 'it']]]
 
     def test_predict_with_unexpected_object(self):
         texts = {'text1': 'sss'}
