@@ -78,22 +78,47 @@ from fastcoref import LingMessCoref
 model = LingMessCoref(device='cuda:0')
 ```
 ## Spacy component
-The package also provides a custom Spacy component that can be plugged into a Spacy(V3) pipeline. The custom component can be added to your pipeline using the name "fastcoref" after importing spacy_component. You can choose the model_architecture as either FCoref or LingMessCoref. If you'd like to use your own trained version you can specify the model_path parameter pointing to your model. The example below shows how to use the pre-trained FCoref model.
+
+The package also provides a custom [SpaCy](https://spacy.io/) component that can be plugged into a Spacy(V3) pipeline. 
+The example below shows how to use the pre-trained `FCoref` model.
+
 ```python
 from fastcoref import spacy_component
-texts = ['We are so happy to see you using our coref package. This package is very fast!',
-         'Glad to see you are using the spacy component as well. As it is a new feature!'
-        ]
-nlp = spacy.load("en_core_web_sm", exclude=["parser", "lemmatizer", "ner", "textcat"])
-nlp.add_pipe("fastcoref",config={'model_architecture':'FCoref',"model_path":'biu-nlp/f-coref','device':'cuda'})
-```
-After adding the model to your Spacy pipeline, the coreference clusters derived by the model can be accessed through the .\_.coref_clusters attribute of the outputted documents. It is also possible to access a version of the text with the coreferences already resolved through the .\_.resolved_text attribute. However this second attribute requires you to pass an optional resolved_text parameter as True to the component config when passing the documents through the pipeline. Important things to note are; Resolving the text requires the tagger component to be in the pipeline and is slower than just extracting the coreference clusters implementation-wise.
-```python
+import spacy
 
-doc_list = nlp.pipe(texts,component_cfg={"fastcoref":{'resolve_text':True}})
-for doc in doc_list:
-   print(doc._.resolved_text)
-   print(doc._.coref_clusters)
+
+texts = ['Alice goes down the rabbit hole. Where she would discover a new reality beyond her expectations.']
+
+nlp = spacy.load("en_core_web_sm")
+nlp.add_pipe("fastcoref")
+
+docs = nlp(texts)
+docs[0]._.coref_clusters
+> [[(0, 5), (39, 42), (79, 82)]]
+```
+
+**Note**: it is better to `exclude=["parser", "lemmatizer", "ner", "textcat"]` at `spacy.load` since the component only rely on pos tagging.
+
+
+You can also load other models, e.g. the more accurate model `LingMessCoref`:
+
+```python
+nlp.add_pipe(
+   "fastcoref", 
+   config={'model_architecture': 'LingMessCoref', 'model_path': 'biu-nlp/lingmess-coref', 'device': 'cpu'}
+)
+```
+
+By specifying `resolve_text=True` in the pipe call, you can get the resolved text for each cluster:
+
+```python
+docs = nlp.pipe(
+   texts, 
+   component_cfg={"fastcoref": {'resolve_text': True}}
+)
+
+docs[0]._.resolved_text
+> "Alice goes down the rabbit hole. Where Alice would discover a new reality beyond Alice's expectations."
 ```
 
 ## Distil your own coref model
