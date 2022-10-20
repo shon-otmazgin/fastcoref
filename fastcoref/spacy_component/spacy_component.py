@@ -23,8 +23,8 @@ class FastCorefResolver:
         nlp,
         name,
         model_architecture: str,
-        model_path:str,
-        device: str,
+        model_path: str,
+        device,
         max_tokens_in_batch: int
     ):
         assert model_architecture in ["FCoref","LingMessCoref"]
