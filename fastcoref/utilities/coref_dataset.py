@@ -14,47 +14,55 @@ from utilities.collate import LeftOversCollator, PadCollator
 logger = logging.getLogger(__name__)
 
 
-def _tokenize(tokenizer, tokens, clusters, speakers):
+def add_speaker_information(tokens, speakers):
     token_to_new_token_map = []
-    new_token_map = []
+    new_token_to_token_map = []
     new_tokens = []
     last_speaker = None
 
     for idx, (token, speaker) in enumerate(zip(tokens, speakers)):
         if last_speaker != speaker:
             new_tokens += [consts.SPEAKER_START, speaker, consts.SPEAKER_END]
-            new_token_map += [None, None, None]
+            new_token_to_token_map += [None, None, None]
             last_speaker = speaker
         token_to_new_token_map.append(len(new_tokens))
-        new_token_map.append(idx)
+        new_token_to_token_map.append(idx)
         new_tokens.append(token)
 
-    for cluster in clusters:
-        for start, end in cluster:
-            assert tokens[start:end + 1] == new_tokens[token_to_new_token_map[start]:token_to_new_token_map[end] + 1]
+    return new_tokens, token_to_new_token_map, new_token_to_token_map
+
+
+def _tokenize(tokenizer, tokens, clusters, speakers):
+    new_tokens, token_to_new_token_map, new_token_to_token_map = tokens, [], []
+    if speakers:
+        new_tokens, token_to_new_token_map, new_token_to_token_map = add_speaker_information(tokens, speakers)
+        for cluster in clusters:
+            for start, end in cluster:
+                assert tokens[start:end + 1] == new_tokens[token_to_new_token_map[start]:token_to_new_token_map[end] + 1]
 
     encoded_text = tokenizer(
         new_tokens, add_special_tokens=True, is_split_into_words=True,
         return_length=True, return_attention_mask=False
     )
 
+    # shifting clusters indices to align with bpe tokens
     new_clusters = [[(encoded_text.word_to_tokens(token_to_new_token_map[start]).start,
                       encoded_text.word_to_tokens(token_to_new_token_map[end]).end - 1)
                      for start, end in cluster] for cluster in clusters]
 
     return {'tokens': tokens,
             'input_ids': encoded_text['input_ids'],
-            'length': encoded_text['length'],
+            'length': encoded_text['length'][0],
 
             'gold_clusters': new_clusters,
+            # tokens to tokens + speakers
+            'new_token_map': new_token_to_token_map,
+            # tokens + speakers to bpe
             'subtoken_map': encoded_text.word_ids(),
-            'new_token_map': new_token_map
             }
 
 
 def encode(example, tokenizer):
-    if 'clusters' not in example:
-        example['clusters'] = []
     encoded_example = _tokenize(tokenizer, example['tokens'], example['clusters'], example['speakers'])
 
     gold_clusters = encoded_example['gold_clusters']
@@ -64,17 +72,35 @@ def encode(example, tokenizer):
     return encoded_example
 
 
-def create(file, tokenizer):
+def prepare_for_encode(example, nlp):
+    if 'tokens' in example and example['tokens']:
+        pass
+    elif 'sentences' in example and example['sentences']:
+        # Assume sentences already tokenized.
+        # This is just for OntoNotes. please avoid using 'sentences' and use 'text' or 'tokens'
+        example['tokens'] = util.flatten(example['sentences'])
+        example['speakers'] = util.flatten(example['speakers'])
+    elif 'text' in example and example['text']:
+        example['tokens'] = [tok.text for tok in nlp(example['text'])]
+    else:
+        raise ValueError(f"Example is empty: {example}")
+
+    return example
+
+
+def create(file, tokenizer, nlp):
     def read_jsonlines(file):
         with open(file, 'r') as f:
             for i, line in enumerate(f):
                 doc = json.loads(line)
-                if "text" not in doc and "tokens" not in doc:
-                    raise ValueError(f'The jsonlines should contains at lt least "text" or "tokens" field')
+                if "text" not in doc and "tokens" not in doc and "sentences" not in doc:
+                    raise ValueError(f'The jsonlines should contains at lt least "text", "sentences" or "tokens" field')
                 if "doc_key" not in doc:
                     doc["doc_key"] = str(i)
                 if "text" not in doc:
                     doc["text"] = ""
+                if "sentences" not in doc:
+                    doc["sentences"] = []
                 if "tokens" not in doc:
                     doc["tokens"] = []
                 if "speakers" not in doc:
@@ -87,6 +113,7 @@ def create(file, tokenizer):
         {
             "doc_key": datasets.Value("string"),
             "text": datasets.Value("string"),
+            "sentences": datasets.Sequence(datasets.Sequence((datasets.Value("int64")))),
             "tokens": datasets.Sequence(datasets.Value("string")),
             "speakers": datasets.Sequence(datasets.Value("string")),
             "clusters": datasets.Sequence(datasets.Sequence((datasets.Value("int64")))),
@@ -94,9 +121,8 @@ def create(file, tokenizer):
     )
 
     dataset = Dataset.from_generator(read_jsonlines, features=features, gen_kwargs={'file': file})
-    print(dataset)
-    print(dataset[3])
-    print(dataset[-1])
+    dataset = dataset.map(prepare_for_encode, batched=False, fn_kwargs={'nlp': nlp})
+    dataset = dataset.map(encode, batched=False, fn_kwargs={'tokenizer': tokenizer})
 
     return dataset
 

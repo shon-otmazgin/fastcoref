@@ -1,5 +1,6 @@
 import logging
 import torch
+import spacy
 from dataclasses import dataclass
 
 import transformers
@@ -105,16 +106,36 @@ def _load_f_coref_model(args):
 
 
 class CorefTrainer:
-    def __init__(self, args: TrainingArgs):
+    def __init__(self, args: TrainingArgs, annotate=False):
         transformers.logging.set_verbosity_error()
 
-        self.args = args
+        if self.args.train_file is None:
+            raise ValueError(f'Train file cannot be None!')
 
-        self.annotator_model, self.annotator_tokenizer = _load_annotator_model()
+        self.args = args
+        self.nlp = spacy.load("en_core_web_sm", exclude=["tagger", "parser", "lemmatizer", "ner", "textcat"])
         self.model, self.tokenizer = _load_f_coref_model(self.args)
         self._set_device()
 
-        train_dataset = coref_dataset.create(file=args.train_file, tokenizer=self.annotator_tokenizer)
+        self.dataset_to_annotate = None
+        if annotate:
+            self.annotator_model, self.annotator_tokenizer = _load_annotator_model()
+            self.dataset_to_annotate = coref_dataset.create(
+                file=args.train_file, tokenizer=self.annotator_tokenizer, nlp=self.nlp
+            )
+            # run evaluate.
+
+        if self.dataset_to_annotate is None:
+            self.train_dataset = coref_dataset.create(
+                file=args.train_file, tokenizer=self.tokenizer, nlp=self.nlp
+            )
+        else:
+            pass
+            # create train dataset from dataset_to_annotate
+
+        self.dev_dataset = None
+        if self.args.dev_file is not None:
+            self.dev_dataset = coref_dataset.create(file=args.dev_file, tokenizer=self.tokenizer, nlp=self.nlp)
 
         set_seed(self.args)
 
