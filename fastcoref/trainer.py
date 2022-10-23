@@ -102,27 +102,27 @@ class CorefTrainer:
             max_segment_len=self.args.max_segment_len
         )
 
-        self.train_dataset = coref_dataset.create(
-            file=train_file, tokenizer=self.tokenizer, nlp=self.nlp
+        self.train_dataset, self.train_sampler = self._get_sampler(train_file)
+
+        self.dev_dataset, self.dev_sampler = None, None
+        if dev_file is not None:
+            self.dev_dataset, self.dev_sampler = self._get_sampler(dev_file)
+
+        set_seed(self.args)
+
+    def _get_sampler(self, file):
+        dataset = coref_dataset.create(
+            file=file, tokenizer=self.tokenizer, nlp=self.nlp
         )
-        self.train_sampler = DynamicBatchSampler(
-            dataset=self.train_dataset,
+        sampler = DynamicBatchSampler(
+            dataset=dataset,
             collator=self.collator,
             max_tokens=self.args.max_tokens_in_batch,
             max_segment_len=self.args.max_segment_len
         )
 
-        self.dev_dataset, self.dev_sampler = None, None
-        if dev_file is not None:
-            self.dev_dataset = coref_dataset.create(file=dev_file, tokenizer=self.tokenizer, nlp=self.nlp)
-            self.dev_sampler = DynamicBatchSampler(
-                dataset=self.dev_dataset,
-                collator=self.collator,
-                max_tokens=self.args.max_tokens_in_batch * 2,
-                max_segment_len=self.args.max_segment_len
-            )
+        return dataset, sampler
 
-        set_seed(self.args)
 
     def _set_device(self):
         # Setup CUDA, GPU & distributed training
@@ -230,7 +230,10 @@ class CorefTrainer:
                         save_all(tokenizer=self.tokenizer, model=self.model, output_dir=output_dir)
                     logger.info(f"best f1 is {best_f1} on global step {best_global_step}")
 
-    def evaluate(self, prefix=''):
+    def evaluate(self, test_file=None, prefix=''):
+        if test_file is not None:
+            self.test_dataset, self.test_sampler = self._get_sampler(test_file)
+
         self.model.eval()
 
         logger.info(f"***** Running Inference on {len(self.dev_sampler.dataset)} documents *****")
