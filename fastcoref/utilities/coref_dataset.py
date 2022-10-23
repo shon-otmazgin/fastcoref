@@ -62,19 +62,8 @@ def _tokenize(tokenizer, tokens, clusters, speakers):
             'subtoken_map': encoded_text.word_ids(),
             }
 
-
-def encode(example, tokenizer):
-    encoded_example = _tokenize(tokenizer, example['tokens'], example['clusters'], example['speakers'])
-
-    gold_clusters = encoded_example['gold_clusters']
-    encoded_example['num_clusters'] = len(gold_clusters) if gold_clusters else 0
-    encoded_example['max_cluster_size'] = max(len(c) for c in gold_clusters) if gold_clusters else 0
-
-    return encoded_example
-
-
 # TODO: better to do it in batches
-def prepare_for_encode(example, nlp):
+def encode(example, tokenizer, nlp):
     if 'tokens' in example and example['tokens']:
         pass
     elif 'text' in example and example['text']:
@@ -82,7 +71,13 @@ def prepare_for_encode(example, nlp):
     else:
         raise ValueError(f"Example is empty: {example}")
 
-    return example
+    encoded_example = _tokenize(tokenizer, example['tokens'], example['clusters'], example['speakers'])
+
+    gold_clusters = encoded_example['gold_clusters']
+    encoded_example['num_clusters'] = len(gold_clusters) if gold_clusters else 0
+    encoded_example['max_cluster_size'] = max(len(c) for c in gold_clusters) if gold_clusters else 0
+
+    return encoded_example
 
 
 def create(file, tokenizer, nlp):
@@ -134,8 +129,11 @@ def create(file, tokenizer, nlp):
     )
 
     dataset = Dataset.from_generator(read_jsonlines, features=features, gen_kwargs={'file': file})
-    dataset = dataset.map(prepare_for_encode, batched=False, fn_kwargs={'nlp': nlp})
-    dataset = dataset.map(encode, batched=False, fn_kwargs={'tokenizer': tokenizer})
+    dataset = dataset.map(
+        encode, batched=False,
+        fn_kwargs={'tokenizer': tokenizer, 'nlp': nlp},
+        load_from_cache_file=True
+    )
 
     return dataset
 

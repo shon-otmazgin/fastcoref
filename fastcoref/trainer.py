@@ -212,7 +212,7 @@ class CorefTrainer:
                 # Log metrics
                 if global_step % args.logging_steps == 0:
                     loss = (tr_loss - logging_loss) / args.logging_steps
-                    logger.info(f"\nloss step {global_step}: {loss}")
+                    logger.info(f"loss step {global_step}: {loss}")
                     wandb.log({'loss': loss}, step=global_step)
                     logging_loss = tr_loss
 
@@ -289,11 +289,12 @@ class CorefTrainer:
 if __name__ == '__main__':
     args = TrainingArgs(
         output_dir='test-trainer',
-        model_name_or_path='biu-nlp/f-coref',
+        overwrite_output_dir=True,
+        model_name_or_path='distilroberta-base',
         device='cuda:2',
         epochs=129,
-        logging_steps=1000,
-        eval_steps=1000
+        logging_steps=100,
+        eval_steps=100
     )
     trainer = CorefTrainer(
         args=args,
