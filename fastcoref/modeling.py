@@ -177,7 +177,7 @@ class CorefModel(ABC):
 
         return sorted(results, key=lambda res: res.text_idx)
 
-    def predict(self, texts, max_tokens_in_batch=10000):
+    def predict(self, texts, max_tokens_in_batch=10000, output_file=None):
         is_str = False
         if isinstance(texts, str):
             texts = [texts]
@@ -189,6 +189,9 @@ class CorefModel(ABC):
         dataloader = self._prepare_batches(dataset, max_tokens_in_batch)
 
         preds = self._inference(dataloader=dataloader)
+        if output_file is not None:
+            with open(output_file, 'w') as f:
+                pass
         if is_str:
             return preds[0]
         return preds
