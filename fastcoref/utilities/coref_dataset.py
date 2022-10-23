@@ -65,7 +65,20 @@ def encode(example, tokenizer, nlp):
     if 'tokens' in example and example['tokens']:
         pass
     elif 'text' in example and example['text']:
-        example['tokens'] = [tok.text for tok in nlp(example['text'])]
+        clusters = example['clusters']
+        spacy_doc = nlp(example['text'])
+        example['tokens'] = [tok.text for tok in spacy_doc]
+
+        new_clusters = [[(spacy_doc.char_span(start, end).start,
+                          spacy_doc.char_span(start, end).end - 1)
+                         for start, end in cluster] for cluster in clusters]
+        # verify alignment
+        for cluster, new_cluster in zip(clusters, new_clusters):
+            for (s1, e1), (s2, e2) in zip(cluster, new_cluster):
+                mention = [tok.text for tok in nlp(example['text'][s1:e1])]
+                assert mention == example['tokens'][s2:e2 + 1], (mention, example['tokens'][s2:e2 + 1])
+
+        example['clusters'] = new_clusters
     else:
         raise ValueError(f"Example is empty: {example}")
 
