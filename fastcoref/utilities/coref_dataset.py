@@ -4,12 +4,10 @@ import os.path
 from collections import defaultdict
 
 import datasets
-from datasets.fingerprint import Hasher
 from datasets import Dataset, Sequence, Value
 from tqdm import tqdm
 
-from . import util, consts
-from .collate import LeftOversCollator, PadCollator
+from utilities import util, consts
 
 logger = logging.getLogger(__name__)
 

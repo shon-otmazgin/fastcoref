@@ -6,20 +6,19 @@ import spacy
 import wandb
 from dataclasses import dataclass
 
-from datasets import Dataset
 from torch.optim.adamw import AdamW
 from tqdm.auto import tqdm
 
 import transformers
 from transformers import AutoConfig, AutoTokenizer, get_linear_schedule_with_warmup
 
-from coref_models.modeling_fcoref import FCorefModel
+from fastcoref.coref_models.modeling_fcoref import FCorefModel
 
-from utilities import coref_dataset
-from utilities.collate import DynamicBatchSampler, LeftOversCollator
-from utilities.consts import SUPPORTED_MODELS
-from utilities.metrics import MentionEvaluator, CorefEvaluator
-from utilities.util import set_seed, create_mention_to_antecedent, create_clusters, \
+from fastcoref.utilities import coref_dataset
+from fastcoref.utilities.collate import DynamicBatchSampler, LeftOversCollator
+from fastcoref.utilities.consts import SUPPORTED_MODELS
+from fastcoref.utilities.metrics import MentionEvaluator, CorefEvaluator
+from fastcoref.utilities.util import set_seed, create_mention_to_antecedent, create_clusters, \
     output_evaluation_metrics, update_metrics, save_all
 
 # Setup logging
@@ -138,7 +137,7 @@ class CorefTrainer:
         """ Train the model """
 
         # we create batches beacuse the sampler is generating batches of sorted docs -> to avoid many pad tokens
-        # so we need to shuffle the batches somehow.
+        # so, we need to shuffle the batches somehow.
         train_batches = coref_dataset.create_batches(self.train_sampler, shuffle=True)
 
         t_total = len(train_batches) * self.args.epochs
@@ -165,7 +164,7 @@ class CorefTrainer:
         ]
         optimizer = AdamW(optimizer_grouped_parameters,
                           lr=self.args.learning_rate,
-                          betas=(self.args.adam_beta1, args.adam_beta2),
+                          betas=(self.args.adam_beta1, self.args.adam_beta2),
                           eps=self.args.adam_epsilon)
         scheduler = get_linear_schedule_with_warmup(optimizer, num_warmup_steps=t_total * 0.1,
                                                     num_training_steps=t_total)
@@ -185,13 +184,13 @@ class CorefTrainer:
         for _ in train_iterator:
             epoch_iterator = tqdm(train_batches, desc="Iteration")
             for step, batch in enumerate(epoch_iterator):
-                batch['input_ids'] = torch.tensor(batch['input_ids'], device=args.device)
-                batch['attention_mask'] = torch.tensor(batch['attention_mask'], device=args.device)
-                batch['gold_clusters'] = torch.tensor(batch['gold_clusters'], device=args.device)
+                batch['input_ids'] = torch.tensor(batch['input_ids'], device=self.device)
+                batch['attention_mask'] = torch.tensor(batch['attention_mask'], device=self.device)
+                batch['gold_clusters'] = torch.tensor(batch['gold_clusters'], device=self.device)
                 if 'leftovers' in batch:
-                    batch['leftovers']['input_ids'] = torch.tensor(batch['leftovers']['input_ids'], device=args.device)
+                    batch['leftovers']['input_ids'] = torch.tensor(batch['leftovers']['input_ids'], device=self.device)
                     batch['leftovers']['attention_mask'] = torch.tensor(batch['leftovers']['attention_mask'],
-                                                                        device=args.device)
+                                                                        device=self.device)
 
                 self.model.zero_grad()
                 self.model.train()
@@ -210,14 +209,14 @@ class CorefTrainer:
                 global_step += 1
 
                 # Log metrics
-                if global_step % args.logging_steps == 0:
-                    loss = (tr_loss - logging_loss) / args.logging_steps
+                if global_step % self.args.logging_steps == 0:
+                    loss = (tr_loss - logging_loss) / self.args.logging_steps
                     logger.info(f"loss step {global_step}: {loss}")
                     wandb.log({'loss': loss}, step=global_step)
                     logging_loss = tr_loss
 
                 # Evaluation
-                if global_step % args.eval_steps == 0:
+                if global_step % self.args.eval_steps == 0:
                     results = self.evaluate(prefix=f'step_{global_step}')
                     wandb.log(results, step=global_step)
 
@@ -227,7 +226,7 @@ class CorefTrainer:
                         wandb.run.summary["best_f1"] = best_f1
 
                         # Save model
-                        output_dir = os.path.join(args.output_dir, f'model')
+                        output_dir = os.path.join(self.args.output_dir, f'model')
                         save_all(tokenizer=self.tokenizer, model=self.model, output_dir=output_dir)
                     logger.info(f"best f1 is {best_f1} on global step {best_global_step}")
 
@@ -284,24 +283,3 @@ class CorefTrainer:
     def push_to_hub(self, repo_name, organization=None):
         self.model.push_to_hub(repo_name, organization=organization, use_temp_dir=True)
         self.tokenizer.push_to_hub(repo_name, organization=organization, use_temp_dir=True)
-
-
-if __name__ == '__main__':
-    args = TrainingArgs(
-        output_dir='test-trainer',
-        overwrite_output_dir=True,
-        model_name_or_path='distilroberta-base',
-        device='cuda:2',
-        epochs=129,
-        logging_steps=100,
-        eval_steps=100
-    )
-    trainer = CorefTrainer(
-        args=args,
-        # train_file='/Users/sotmazgin/Desktop/fastcoref/dev.english.jsonlines',
-        # dev_file='/Users/sotmazgin/Desktop/fastcoref/dev.english.jsonlines',
-        train_file='/home/nlp/shon711/lingmess-coref/prepare_ontonotes/train.english.jsonlines',
-        dev_file='/home/nlp/shon711/lingmess-coref/prepare_ontonotes/dev.english.jsonlines'
-    )
-    trainer.train()
-    trainer.evaluate()
