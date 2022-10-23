@@ -111,7 +111,7 @@ class CorefTrainer:
 
         self.dev_dataset, self.train_sampler = None, None
         if dev_file is not None:
-            self.dev_dataset = coref_dataset.create(file=dev_file, tokenizer=self.tokenizer, nlp=self.nlp).select([0, 10, 20, 30, 40, 50])
+            self.dev_dataset = coref_dataset.create(file=dev_file, tokenizer=self.tokenizer, nlp=self.nlp)
             self.dev_sampler = DynamicBatchSampler(
                 dataset=self.dev_dataset,
                 collator=self.collator,
@@ -191,11 +191,13 @@ class CorefTrainer:
 if __name__ == '__main__':
     args = TrainingArgs(
         model_name_or_path='biu-nlp/f-coref',
-        # device='cuda:0'
+        device='cuda:2'
     )
     trainer = CorefTrainer(
         args=args,
-        train_file='/Users/sotmazgin/Desktop/fastcoref/dev.english.jsonlines',
-        dev_file='/Users/sotmazgin/Desktop/fastcoref/dev.english.jsonlines'
+        # train_file='/Users/sotmazgin/Desktop/fastcoref/dev.english.jsonlines',
+        # dev_file='/Users/sotmazgin/Desktop/fastcoref/dev.english.jsonlines',
+        train_file='/home/nlp/shon711/lingmess-coref/prepare_ontonotes/dev.english.jsonlines',
+        dev_file='/home/nlp/shon711/lingmess-coref/prepare_ontonotes/dev.english.jsonlines'
     )
     trainer.evaluate()
