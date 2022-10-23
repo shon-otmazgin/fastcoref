@@ -137,7 +137,7 @@ To be able to distil your own model you need:
       3. `clusters` information (see next for annotation) as a span start/end indices of the provided field `text`(char level) `tokens`(word level) `sentences`(word level)`.
 
 
-2. teacher model to annotate clusters for this dataset. For instance, It can be the package `LingMessCoref` model.
+2. A model to annotate the clusters. For instance, It can be the package `LingMessCoref` model.
 ```python
 from fastcoref import LingMessCoref
 
