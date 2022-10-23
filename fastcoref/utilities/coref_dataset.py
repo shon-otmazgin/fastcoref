@@ -140,35 +140,15 @@ def create(file, tokenizer, nlp):
     return dataset
 
 
-def create_batches(sampler, dataset_files, cache_dir='cache'):
-    key = Hasher.hash(dataset_files)
-    if isinstance(sampler.collator, LeftOversCollator):
-        key += '_segment_collator'
-    elif isinstance(sampler.collator, PadCollator):
-        key += '_longformer_collator'
-    else:
-        raise NotImplementedError('this collator not implemented!')
+# TODO: this function can be implemented much much better, e.g. from_generator
+def create_batches(sampler, shuffle=True, cache_dir='cache'):
+    # huggingface dataset cannot save tensors. so we will save lists and on train loop transform to tensors.
+    batches_dict = defaultdict(lambda: [])
 
-    cache_key = Hasher.hash(key)
-    dataset_path = os.path.join(cache_dir, cache_key)
+    for i, batch in enumerate(tqdm(sampler, desc="Creating batches for training")):
+        for k, v in batch.items():
+            batches_dict[k].append(v)
 
-    try:
-        batches = datasets.load_from_disk(dataset_path)
-        logger.info(f'Batches restored from: {dataset_path}')
-    except FileNotFoundError:
-        logger.info(f'Creating batches for {len(sampler.dataset)} examples...')
-
-        # huggingface dataset cannot save tensors. so we will save lists and on train loop transform to tensors.
-        batches_dict = defaultdict(lambda: [])
-
-        for i, batch in enumerate(tqdm(sampler)):
-            for k, v in batch.items():
-                batches_dict[k].append(v)
-
-        batches = Dataset.from_dict(batches_dict)
-        logger.info(f'{len(batches)} batches created.')
-
-        logger.info(f'Saving batches to {dataset_path}')
-        batches.save_to_disk(dataset_path)
+    batches = Dataset.from_dict(batches_dict)
 
     return batches

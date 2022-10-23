@@ -12,6 +12,17 @@ def flatten(l):
     return [item for sublist in l for item in sublist]
 
 
+def save_all(model, tokenizer, output_dir):
+    logger.info(f"Saving model to {output_dir}")
+    if not os.path.exists(output_dir):
+        os.makedirs(output_dir)
+
+    # Save a trained model, configuration and tokenizer using `save_pretrained()`.
+    # They can then be reloaded using `from_pretrained()`
+    model.save_pretrained(output_dir)
+    tokenizer.save_pretrained(output_dir)
+
+
 def pad_clusters_inside(clusters, max_cluster_size):
     return [cluster + [(NULL_ID_FOR_COREF, NULL_ID_FOR_COREF)] * (max_cluster_size - len(cluster)) for cluster
             in clusters]

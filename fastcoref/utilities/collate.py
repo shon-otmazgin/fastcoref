@@ -67,7 +67,7 @@ class PadCollator:
 class DynamicBatchSampler:
     def __init__(self, dataset, collator, max_tokens, max_segment_len, max_doc_len=None):
         self.max_tokens = max_tokens
-        self.dataset = dataset.sort('length', reverse=True)
+        self.dataset = dataset.sort('length', reverse=False)
         self.collator = collator
         self.max_segment_len = max_segment_len
         self.max_doc_len = max_doc_len
