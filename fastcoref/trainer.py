@@ -127,7 +127,6 @@ class CorefTrainer:
 
         return dataset, sampler
 
-
     def _set_device(self):
         # Setup CUDA, GPU & distributed training
         if self.args.device is None:

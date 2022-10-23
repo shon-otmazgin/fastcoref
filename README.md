@@ -134,8 +134,7 @@ To be able to distil your own model you need:
          1. `text: str` - a raw text string.
          2. `tokens: List[str]` - a list of tokens (tokenized text).
          3. `sentences: List[List[str]]` - a list of lists of tokens (tokenized sentences).
-
-[//]: # (      3. Each json line must include `clusters` information as a span start/end indices of the provided field `text`&#40;char level&#41; `tokens`&#40;word level&#41; `sentences`&#40;word level&#41;`.)
+      3. `clusters` information (see next for annotation) as a span start/end indices of the provided field `text`(char level) `tokens`(word level) `sentences`(word level)`.
 
 
 2. teacher model to annotate clusters for this dataset. For instance, It can be the package `LingMessCoref` model.
