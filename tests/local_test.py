@@ -6,6 +6,8 @@ texts = ['We are so happy to see you using our coref package. This package is ve
 
 model = FCoref(device='cpu')
 
+preds = model.predict(texts=texts, max_tokens_in_batch=5000, output_file='out_test.jsonlines')
+
 preds = model.predict(texts=texts, max_tokens_in_batch=5000)
 print(preds)
 
