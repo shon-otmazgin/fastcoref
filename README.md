@@ -141,7 +141,9 @@ To be able to distil your own model you need:
 ```python
 from fastcoref import LingMessCoref
 
-model = LingMessCoref(device='cuda:0')
+model = LingMessCoref()
+preds = model.predict(texts=texts, output_file='train_file_with_clusters.jsonlines')
+
 ```
 
 3. Train and evaluate your own `FCoref`
