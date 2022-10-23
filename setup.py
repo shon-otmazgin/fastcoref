@@ -27,7 +27,7 @@ setup(
         'spacy>=3.0.6',
         'torch>=1.10.0',
         'transformers>=4.11.3',
-        'datasets>=2.1.0'
+        'datasets>=2.5.2'
       ],
 
 )

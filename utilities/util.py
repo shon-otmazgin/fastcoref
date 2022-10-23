@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 nlp = None
 
 
-def output_evaluation_metrics(metrics_dict, output_dir, prefix):
+def output_evaluation_metrics(metrics_dict, prefix):
     loss = metrics_dict['loss']
     post_pruning_mention_pr, post_pruning_mentions_r, post_pruning_mention_f1 = metrics_dict['post_pruning'].get_prf()
     mention_p, mentions_r, mention_f1 = metrics_dict['mentions'].get_prf()

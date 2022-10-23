@@ -5,11 +5,11 @@ from collections import defaultdict
 
 import datasets
 from datasets.fingerprint import Hasher
-from datasets import Dataset
+from datasets import Dataset, Sequence, Value
 from tqdm import tqdm
 
-from utilities import util, consts
-from utilities.collate import LeftOversCollator, PadCollator
+from . import util, consts
+from .collate import LeftOversCollator, PadCollator
 
 logger = logging.getLogger(__name__)
 
@@ -33,7 +33,7 @@ def add_speaker_information(tokens, speakers):
 
 
 def _tokenize(tokenizer, tokens, clusters, speakers):
-    new_tokens, token_to_new_token_map, new_token_to_token_map = tokens, [], []
+    new_tokens, token_to_new_token_map, new_token_to_token_map = tokens, list(range(len(tokens))), list(range(len(tokens)))
     if speakers:
         new_tokens, token_to_new_token_map, new_token_to_token_map = add_speaker_information(tokens, speakers)
         for cluster in clusters:
@@ -46,6 +46,7 @@ def _tokenize(tokenizer, tokens, clusters, speakers):
     )
 
     # shifting clusters indices to align with bpe tokens
+    # align clusters is the reason we can't do it in batches.
     new_clusters = [[(encoded_text.word_to_tokens(token_to_new_token_map[start]).start,
                       encoded_text.word_to_tokens(token_to_new_token_map[end]).end - 1)
                      for start, end in cluster] for cluster in clusters]
@@ -72,14 +73,10 @@ def encode(example, tokenizer):
     return encoded_example
 
 
+# TODO: better to do it in batches
 def prepare_for_encode(example, nlp):
     if 'tokens' in example and example['tokens']:
         pass
-    elif 'sentences' in example and example['sentences']:
-        # Assume sentences already tokenized.
-        # This is just for OntoNotes. please avoid using 'sentences' and use 'text' or 'tokens'
-        example['tokens'] = util.flatten(example['sentences'])
-        example['speakers'] = util.flatten(example['speakers'])
     elif 'text' in example and example['text']:
         example['tokens'] = [tok.text for tok in nlp(example['text'])]
     else:
@@ -95,28 +92,44 @@ def create(file, tokenizer, nlp):
                 doc = json.loads(line)
                 if "text" not in doc and "tokens" not in doc and "sentences" not in doc:
                     raise ValueError(f'The jsonlines should contains at lt least "text", "sentences" or "tokens" field')
+
+                minimum_doc = {}
                 if "doc_key" not in doc:
-                    doc["doc_key"] = str(i)
+                    minimum_doc["doc_key"] = str(i)
+                else:
+                    minimum_doc["doc_key"] = doc["doc_key"]
+
                 if "text" not in doc:
-                    doc["text"] = ""
-                if "sentences" not in doc:
-                    doc["sentences"] = []
-                if "tokens" not in doc:
-                    doc["tokens"] = []
+                    minimum_doc["text"] = ""
+                else:
+                    minimum_doc["text"] = doc["text"]
+
+                if "tokens" in doc:
+                    minimum_doc["tokens"] = doc["tokens"]
+                elif "sentences" in doc:
+                    minimum_doc["tokens"] = util.flatten(doc["sentences"])
+                else:
+                    minimum_doc["tokens"] = []
+
                 if "speakers" not in doc:
-                    doc["speakers"] = []
+                    minimum_doc["speakers"] = []
+                else:
+                    minimum_doc["speakers"] = util.flatten(doc["speakers"])
+
                 if "clusters" not in doc:
-                    doc["clusters"] = []
-                yield doc
+                    minimum_doc["clusters"] = []
+                else:
+                    minimum_doc["clusters"] = doc["clusters"]
+
+                yield minimum_doc
 
     features = datasets.Features(
         {
-            "doc_key": datasets.Value("string"),
-            "text": datasets.Value("string"),
-            "sentences": datasets.Sequence(datasets.Sequence((datasets.Value("int64")))),
-            "tokens": datasets.Sequence(datasets.Value("string")),
-            "speakers": datasets.Sequence(datasets.Value("string")),
-            "clusters": datasets.Sequence(datasets.Sequence((datasets.Value("int64")))),
+            "doc_key": Value("string"),
+            "text": Value("string"),
+            "tokens": Sequence(Value("string")),
+            "speakers": Sequence(Value("string")),
+            "clusters": Sequence(Sequence(Sequence(Value("int64")))),
         }
     )
 

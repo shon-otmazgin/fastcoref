@@ -8,6 +8,70 @@ from fastcoref.utilities.consts import NULL_ID_FOR_COREF, CATEGORIES, PRONOUNS_G
 logger = logging.getLogger(__name__)
 
 
+def flatten(l):
+    return [item for sublist in l for item in sublist]
+
+
+def pad_clusters_inside(clusters, max_cluster_size):
+    return [cluster + [(NULL_ID_FOR_COREF, NULL_ID_FOR_COREF)] * (max_cluster_size - len(cluster)) for cluster
+            in clusters]
+
+
+def pad_clusters_outside(clusters, max_num_clusters):
+    return clusters + [[]] * (max_num_clusters - len(clusters))
+
+
+def pad_clusters(clusters, max_num_clusters, max_cluster_size):
+    clusters = pad_clusters_outside(clusters, max_num_clusters)
+    clusters = pad_clusters_inside(clusters, max_cluster_size)
+    return clusters
+
+
+def output_evaluation_metrics(metrics_dict, prefix):
+    loss = metrics_dict['loss']
+    post_pruning_mention_pr, post_pruning_mentions_r, post_pruning_mention_f1 = metrics_dict['post_pruning'].get_prf()
+    mention_p, mentions_r, mention_f1 = metrics_dict['mentions'].get_prf()
+    p, r, f1 = metrics_dict['coref'].get_prf()
+    results = {
+        'eval_loss': loss,
+        "post pruning mention precision": post_pruning_mention_pr,
+        "post pruning mention recall": post_pruning_mentions_r,
+        "post pruning mention f1": post_pruning_mention_f1,
+        "mention precision": mention_p,
+        "mention recall": mentions_r,
+        "mention f1": mention_f1,
+        "precision": p,
+        "recall": r,
+        "f1": f1
+    }
+
+    logger.info("***** Eval results {} *****".format(prefix))
+    for key, value in results.items():
+        if isinstance(value, float):
+            logger.info(f"  {key : <30} = {value:.3f}")
+        elif isinstance(value, dict):
+            logger.info(f"  {key : <30} = {value}")
+
+    return results
+
+
+
+def update_metrics(metrics, span_starts, span_ends, gold_clusters, predicted_clusters):
+    gold_clusters = extract_clusters(gold_clusters)
+    candidate_mentions = list(zip(span_starts, span_ends))
+
+    mention_to_gold_clusters = extract_mentions_to_clusters(gold_clusters)
+    mention_to_predicted_clusters = extract_mentions_to_clusters(predicted_clusters)
+
+    gold_mentions = list(mention_to_gold_clusters.keys())
+    predicted_mentions = list(mention_to_predicted_clusters.keys())
+
+    metrics['post_pruning'].update(candidate_mentions, gold_mentions)
+    metrics['mentions'].update(predicted_mentions, gold_mentions)
+    metrics['coref'].update(predicted_clusters, gold_clusters,
+                            mention_to_predicted_clusters, mention_to_gold_clusters)
+
+
 def encode(batch, tokenizer, nlp):
     tokenized_texts = tokenize_with_spacy(batch['text'], nlp)
     encoded_batch = tokenizer(

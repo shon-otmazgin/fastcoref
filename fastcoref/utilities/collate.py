@@ -1,6 +1,8 @@
 import logging
 import torch
 import math
+from .util import pad_clusters
+
 
 logger = logging.getLogger(__name__)
 
@@ -33,6 +35,15 @@ class LeftOversCollator:
 
         batch['input_ids'] = torch.tensor(input_ids, device=self.device)
         batch['attention_mask'] = torch.tensor(attention_mask, device=self.device)
+
+        if 'gold_clusters' in batch:
+            max_num_clusters, max_max_cluster_size = max(batch['num_clusters']), max(batch['max_cluster_size'])
+            if max_num_clusters and max_max_cluster_size:
+                padded_clusters = [pad_clusters(cluster, max_num_clusters, max_max_cluster_size) for cluster in
+                                   batch['gold_clusters']]
+                batch['gold_clusters'] = torch.tensor(padded_clusters, device=self.device)
+            else:
+                batch['gold_clusters'] = None
 
         return batch
 
