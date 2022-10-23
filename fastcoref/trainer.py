@@ -85,7 +85,7 @@ def _load_f_coref_model(args):
 
 
 class CorefTrainer:
-    def __init__(self, args: TrainingArgs, train_file, dev_file=None):
+    def __init__(self, args: TrainingArgs, train_file, dev_file=None, test_file=None):
         transformers.logging.set_verbosity_error()
         self.args = args
         wandb.init(project=self.args.output_dir, config=self.args)
@@ -107,6 +107,10 @@ class CorefTrainer:
         self.dev_dataset, self.dev_sampler = None, None
         if dev_file is not None:
             self.dev_dataset, self.dev_sampler = self._get_sampler(dev_file)
+
+        self.test_dataset, self.test_sampler = None, None
+        if test_file is not None:
+            self.test_dataset, self.test_sampler = self._get_sampler(test_file)
 
         set_seed(self.args)
 
@@ -230,13 +234,15 @@ class CorefTrainer:
                         save_all(tokenizer=self.tokenizer, model=self.model, output_dir=output_dir)
                     logger.info(f"best f1 is {best_f1} on global step {best_global_step}")
 
-    def evaluate(self, test_file=None, prefix=''):
-        if test_file is not None:
-            self.test_dataset, self.test_sampler = self._get_sampler(test_file)
+    def evaluate(self, test=False, prefix=''):
+        if test:
+            eval_sampler = self.test_sampler
+        else:
+            eval_sampler = self.dev_sampler
 
         self.model.eval()
 
-        logger.info(f"***** Running Inference on {len(self.dev_sampler.dataset)} documents *****")
+        logger.info(f"***** Running Inference on {len(eval_sampler.dataset)} documents *****")
 
         metrics_dict = {'loss': 0., 'post_pruning': MentionEvaluator(), 'mentions': MentionEvaluator(),
                         'coref': CorefEvaluator()}
@@ -245,8 +251,8 @@ class CorefTrainer:
         doc_to_new_word_map = {}
         doc_to_prediction = {}
 
-        with tqdm(desc="Inference", total=len(self.dev_sampler.dataset)) as progress_bar:
-            for idx, batch in enumerate(self.dev_sampler):
+        with tqdm(desc="Inference", total=len(eval_sampler.dataset)) as progress_bar:
+            for idx, batch in enumerate(eval_sampler):
                 doc_keys = batch['doc_key']
                 tokens = batch['tokens']
                 subtoken_map = batch['subtoken_map']

@@ -15,7 +15,8 @@ trainer = CorefTrainer(
     # train_file='/Users/sotmazgin/Desktop/fastcoref/dev.english.jsonlines',
     # dev_file='/Users/sotmazgin/Desktop/fastcoref/dev.english.jsonlines',
     train_file='/home/nlp/shon711/lingmess-coref/prepare_ontonotes/train.english.jsonlines',
-    dev_file='/home/nlp/shon711/lingmess-coref/prepare_ontonotes/dev.english.jsonlines'
+    dev_file='/home/nlp/shon711/lingmess-coref/prepare_ontonotes/dev.english.jsonlines',
+    test_file='/home/nlp/shon711/lingmess-coref/prepare_ontonotes/test.english.jsonlines'
 )
-trainer.train()
-trainer.evaluate()
+# trainer.train()
+trainer.evaluate(test=True)
