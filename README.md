@@ -162,7 +162,7 @@ args = TrainingArgs(
 
 trainer = CorefTrainer(
     args=args,
-    train_file='path-to-train-file', 
+    train_file='train_file_with_clusters.jsonlines', 
     dev_file='path-to-dev-file',    # optional
     test_file='path-to-test-file'   # optional
 )
