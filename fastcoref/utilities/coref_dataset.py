@@ -7,7 +7,7 @@ import datasets
 from datasets import Dataset, Sequence, Value
 from tqdm import tqdm
 
-from utilities import util, consts
+from fastcoref.utilities import util, consts
 
 logger = logging.getLogger(__name__)
 
