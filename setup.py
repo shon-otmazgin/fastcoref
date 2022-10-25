@@ -14,7 +14,7 @@ setup(
     name='fastcoref',
     long_description=long_description,
     long_description_content_type='text/markdown',
-    version='1.7.1',
+    version='2.0.0',
     license='MIT',
     author="Shon Otmazgin, Arie Cattan, Yoav Goldberg",
     author_email='shon711@gmail.com',
