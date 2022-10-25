@@ -219,8 +219,8 @@ class CorefTrainer:
                     logging_loss = tr_loss
 
                 # Evaluation
-                if global_step % self.args.eval_steps == 0:
-                    results = self.evaluate(prefix=f'step_{global_step}')
+                if self.dev_sampler is not None and global_step % self.args.eval_steps == 0:
+                    results = self.evaluate(prefix=f'step_{global_step}', test=False)
                     wandb.log(results, step=global_step)
 
                     f1 = results["f1"]
@@ -236,12 +236,17 @@ class CorefTrainer:
     def evaluate(self, test=False, prefix=''):
         if test:
             eval_sampler = self.test_sampler
+            dataset_str = 'test_set'
         else:
             eval_sampler = self.dev_sampler
+            dataset_str = 'dev_set'
+        if eval_sampler is None:
+            logger.info(f'Skipping evaluation. {dataset_str} is None')
+            return {}
 
         self.model.eval()
 
-        logger.info(f"***** Running Inference on {len(eval_sampler.dataset)} documents *****")
+        logger.info(f"***** Running evaluation on {dataset_str} - {len(eval_sampler.dataset)} documents *****")
 
         metrics_dict = {'loss': 0., 'post_pruning': MentionEvaluator(), 'mentions': MentionEvaluator(),
                         'coref': CorefEvaluator()}
