@@ -1,3 +1,4 @@
+import json
 from abc import ABC
 
 import logging
@@ -169,7 +170,7 @@ class CorefModel(ABC):
                     res = CorefResult(
                         text=texts[i], clusters=predicted_clusters,
                         char_map=char_map, reverse_char_map=reverse_char_map,
-                        coref_logit=coref_logits[i], text_idx = idxs[i]
+                        coref_logit=coref_logits[i], text_idx=idxs[i]
                     )
                     results.append(res)
 
@@ -177,7 +178,7 @@ class CorefModel(ABC):
 
         return sorted(results, key=lambda res: res.text_idx)
 
-    def predict(self, texts, max_tokens_in_batch=10000):
+    def predict(self, texts, max_tokens_in_batch=10000, output_file=None):
         is_str = False
         if isinstance(texts, str):
             texts = [texts]
@@ -189,6 +190,13 @@ class CorefModel(ABC):
         dataloader = self._prepare_batches(dataset, max_tokens_in_batch)
 
         preds = self._inference(dataloader=dataloader)
+        if output_file is not None:
+            with open(output_file, 'w') as f:
+                data = [{'text': p.text,
+                         'clusters': p.get_clusters(as_strings=False),
+                         'clusters_strings': p.get_clusters(as_strings=True)}
+                        for p in preds]
+                f.write('\n'.join(map(json.dumps, data)))
         if is_str:
             return preds[0]
         return preds

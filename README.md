@@ -126,45 +126,51 @@ On top of the provided models, the package also provides the ability to train an
 
 To be able to distil your own model you need:
 1. A Large unlabeled dataset, for instance Wikipedia or any other source.
-2. A teacher model to annotate clusters for this dataset. For instance, It can be the package `LingMess` model.
-3. A student model, in the below example, we define the teacher model architecture, but you can modify it with another set of hyper-parameters. 
 
-Dataset guidelines:
-1. Each dataset split (train/dev/test) should be in separate file.
-2. Each file should be in `jsonlines` format
-3. Each json line in the file must include these fields:
-   1. `doc_key` (you can use `uuid.uuid4().hex` to generate or any other keys)
-   2. `tokens` field, if you have plain text, it is recommended to run [`Spacy`](https://spacy.io/) tokenizer to get tokens.
-   3. `clusters` information as a span start/end indices of the `tokens`.
+   Guidelines:
+   1. Each dataset split (train/dev/test) should be in separate file.
+      1. Each file should be in `jsonlines` format
+      2. Each json line in the file must include at least one of:
+         1. `text: str` - a raw text string.
+         2. `tokens: List[str]` - a list of tokens (tokenized text).
+         3. `sentences: List[List[str]]` - a list of lists of tokens (tokenized sentences).
+      3. `clusters` information (see next for annotation) as a span start/end indices of the provided field `text`(char level) `tokens`(word level) `sentences`(word level)`.
 
-As mentioned before, you can have the clusters and the tokens information using this package to any unlabeled dataset. 
 
-Once you done preparing annotate dataset files, you can do the following for training:
-```
-git clone https://github.com/shon-otmazgin/fastcoref.git
-cd fastcoref/hard_training
-```
-
+2. A model to annotate the clusters. For instance, It can be the package `LingMessCoref` model.
 ```python
-python run.py \
-      --cache_dir=CACHE_DIR \
-      --output_dir=DIR_NAME  \
-      --overwrite_output_dir \
-      --model_name_or_path=distilroberta-base \     # or any other you would like.
-      --train_file=PATH_TO_TRAIN_FILE.jsonlines \
-      --dev_file=PATH_TO_DEV_FILE.jsonlines \
-      --test_file=PATH_TO_TEST_FILE.jsonlines \
-      --max_tokens_in_batch=5000 \                  # configure based on your max length document and your GPU size.
-      --do_train \
-      --eval_split=dev \
-      --logging_steps=500 \
-      --eval_steps=1000 \
-      --train_epochs=50 \
-      --head_learning_rate=3e-5  \
-      --learning_rate=1e-5 \
-      --ffnn_size=1024 \                           # you can have larger coreference head with this parameter.
-      --experiment_name="your-custom-fastcoref" \
-      --device=cuda:0
+from fastcoref import LingMessCoref
+
+model = LingMessCoref()
+preds = model.predict(texts=texts, output_file='train_file_with_clusters.jsonlines')
+
+```
+
+3. Train and evaluate your own `FCoref`
+```python
+from fastcoref import TrainingArgs, CorefTrainer
+
+args = TrainingArgs(
+    output_dir='test-trainer',
+    overwrite_output_dir=True,
+    model_name_or_path='distilroberta-base',
+    device='cuda:2',
+    epochs=129,
+    logging_steps=100,
+    eval_steps=100
+)   # you can control other arguments such as learning head and others.
+
+trainer = CorefTrainer(
+    args=args,
+    train_file='train_file_with_clusters.jsonlines', 
+    dev_file='path-to-dev-file',    # optional
+    test_file='path-to-test-file'   # optional
+)
+trainer.train()
+trainer.evaluate(test=True)
+
+trainer.push_to_hub('your-fast-coref-model-path')
+
 ```
 
 After finish training your own model, push the model the huggingface hub (or keep it local), and load your model:
@@ -172,13 +178,6 @@ After finish training your own model, push the model the huggingface hub (or kee
 from fastcoref import FCoref
 
 model = FCoref(
-   model_name_or_path='your-fast-coref-model-path',
-   device='cuda:0'
-)
-```
-Or in case of `LingMessCoref` model:
-```python
-model = LingMessCoref(
    model_name_or_path='your-fast-coref-model-path',
    device='cuda:0'
 )

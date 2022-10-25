@@ -1,6 +1,8 @@
 import logging
 import torch
 import math
+from fastcoref.utilities.util import pad_clusters
+
 
 logger = logging.getLogger(__name__)
 
@@ -34,6 +36,15 @@ class LeftOversCollator:
         batch['input_ids'] = torch.tensor(input_ids, device=self.device)
         batch['attention_mask'] = torch.tensor(attention_mask, device=self.device)
 
+        if 'gold_clusters' in batch:
+            max_num_clusters, max_max_cluster_size = max(batch['num_clusters']), max(batch['max_cluster_size'])
+            if max_num_clusters and max_max_cluster_size:
+                padded_clusters = [pad_clusters(cluster, max_num_clusters, max_max_cluster_size) for cluster in
+                                   batch['gold_clusters']]
+                batch['gold_clusters'] = torch.tensor(padded_clusters, device=self.device)
+            else:
+                batch['gold_clusters'] = None
+
         return batch
 
 
@@ -50,13 +61,22 @@ class PadCollator:
         batch['input_ids'] = torch.tensor(batch['input_ids'], device=self.device)
         batch['attention_mask'] = torch.tensor(batch['attention_mask'], device=self.device)
 
+        if 'gold_clusters' in batch:
+            max_num_clusters, max_max_cluster_size = max(batch['num_clusters']), max(batch['max_cluster_size'])
+            if max_num_clusters and max_max_cluster_size:
+                padded_clusters = [pad_clusters(cluster, max_num_clusters, max_max_cluster_size) for cluster in
+                                   batch['gold_clusters']]
+                batch['gold_clusters'] = torch.tensor(padded_clusters, device=self.device)
+            else:
+                batch['gold_clusters'] = None
+
         return batch
 
 
 class DynamicBatchSampler:
     def __init__(self, dataset, collator, max_tokens, max_segment_len, max_doc_len=None):
         self.max_tokens = max_tokens
-        self.dataset = dataset.sort('length', reverse=True)
+        self.dataset = dataset.sort('length', reverse=False)
         self.collator = collator
         self.max_segment_len = max_segment_len
         self.max_doc_len = max_doc_len
