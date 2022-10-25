@@ -87,13 +87,13 @@ from fastcoref import spacy_component
 import spacy
 
 
-texts = ['Alice goes down the rabbit hole. Where she would discover a new reality beyond her expectations.']
+text = 'Alice goes down the rabbit hole. Where she would discover a new reality beyond her expectations.'
 
 nlp = spacy.load("en_core_web_sm")
 nlp.add_pipe("fastcoref")
 
-docs = nlp(texts)
-docs[0]._.coref_clusters
+doc = nlp(text)
+doc._.coref_clusters
 > [[(0, 5), (39, 42), (79, 82)]]
 ```
 
