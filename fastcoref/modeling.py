@@ -64,7 +64,7 @@ class CorefResult:
 
 
 class CorefModel(ABC):
-    def __init__(self, model_name_or_path, coref_class, collator_class, device=None):
+    def __init__(self, model_name_or_path, coref_class, collator_class, device=None, nlp=None):
         self.model_name_or_path = model_name_or_path
         self.device = device
         self.seed = 42
@@ -89,13 +89,15 @@ class CorefModel(ABC):
         else:
             raise NotImplementedError(f"Class collator {type(collator_class)} is not supported! "
                                       f"only LeftOversCollator or PadCollator supported")
-
-        try:
-            self.nlp = spacy.load("en_core_web_sm", exclude=["tagger", "parser", "lemmatizer", "ner", "textcat"])
-        except OSError:
-            # TODO: this is a workaround it is not clear how to add "en_core_web_sm" to setup.py
-            download('en_core_web_sm')
-            self.nlp = spacy.load("en_core_web_sm", exclude=["tagger", "parser", "lemmatizer", "ner", "textcat"])
+        if nlp is not None:
+            self.nlp = nlp
+        else:
+            try:
+                self.nlp = spacy.load("en_core_web_sm", exclude=["tagger", "parser", "lemmatizer", "ner", "textcat"])
+            except OSError:
+                # TODO: this is a workaround it is not clear how to add "en_core_web_sm" to setup.py
+                download('en_core_web_sm')
+                self.nlp = spacy.load("en_core_web_sm", exclude=["tagger", "parser", "lemmatizer", "ner", "textcat"])
 
         self.model, loading_info = coref_class.from_pretrained(
             self.model_name_or_path, config=config,
@@ -203,13 +205,13 @@ class CorefModel(ABC):
 
 
 class FCoref(CorefModel):
-    def __init__(self, model_name_or_path='biu-nlp/f-coref', device=None):
-        super().__init__(model_name_or_path, FCorefModel, LeftOversCollator, device)
+    def __init__(self, model_name_or_path='biu-nlp/f-coref', device=None, nlp=None):
+        super().__init__(model_name_or_path, FCorefModel, LeftOversCollator, device, nlp)
 
 
 class LingMessCoref(CorefModel):
-    def __init__(self, model_name_or_path='biu-nlp/lingmess-coref', device=None):
-        super().__init__(model_name_or_path, LingMessModel, PadCollator, device)
+    def __init__(self, model_name_or_path='biu-nlp/lingmess-coref', device=None, nlp=None):
+        super().__init__(model_name_or_path, LingMessModel, PadCollator, device, nlp)
 
 
 
