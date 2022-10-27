@@ -29,9 +29,9 @@ class FastCorefResolver:
     ):
         assert model_architecture in ["FCoref","LingMessCoref"]
         if model_architecture == "FCoref": 
-            self.coref_model = FCoref(model_name_or_path = model_path, device=device)
+            self.coref_model = FCoref(model_name_or_path = model_path, device=device, nlp=nlp)
         elif model_architecture == "LingMessCoref":
-            self.coref_model = LingMessCoref(model_name_or_path = model_path, device=device)
+            self.coref_model = LingMessCoref(model_name_or_path = model_path, device=device, nlp=nlp)
         self.max_tokens_in_batch = max_tokens_in_batch
         # Register custom extension on the Doc
         if not Doc.has_extension("resolved_text"):
@@ -104,6 +104,7 @@ class FastCorefResolver:
         for i in range(char_span.start + 1, char_span.end):
             resolved[i] = ""
         return resolved
+
     def __call__(self, doc: Doc, resolve_text=False) -> Doc:
         """
         The function takes a doc object and returns a doc object
@@ -126,6 +127,7 @@ class FastCorefResolver:
             doc._.resolved_text = "".join(resolved)
         doc._.coref_clusters = clusters
         return doc
+
     def pipe(self, stream, batch_size=512, resolve_text=False):
         for docs in util.minibatch(stream, size=batch_size):
             preds = self.coref_model.predict(
