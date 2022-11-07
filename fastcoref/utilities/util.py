@@ -84,7 +84,10 @@ def update_metrics(metrics, span_starts, span_ends, gold_clusters, predicted_clu
 
 
 def encode(batch, tokenizer, nlp):
-    tokenized_texts = tokenize_with_spacy(batch['text'], nlp)
+    if batch['tokenized_text']:
+        tokenized_texts = preprocess_tokenized_texts(batch['tokenized_text'])
+    else:
+        tokenized_texts = tokenize_with_spacy(batch['text'], nlp)
     encoded_batch = tokenizer(
         tokenized_texts['tokens'], add_special_tokens=True, is_split_into_words=True,
         return_length=True, return_attention_mask=False
@@ -101,6 +104,17 @@ def encode(batch, tokenizer, nlp):
         # spacy tokens -> text char
         'offset_mapping': tokenized_texts['offset_mapping']
     }
+
+
+def preprocess_tokenized_texts(tokenized_texts):
+    final_tokenized_texts = {'tokens': tokenized_texts, "offset_mapping": []}
+    for i, tokenized_text in enumerate(tokenized_texts):
+        final_tokenized_texts["offset_mapping"].append([])
+        start = 0
+        for tok in tokenized_text:
+            final_tokenized_texts["offset_mapping"][i].append((start, start + len(tok)))
+            start += len(tok) + 1
+    return final_tokenized_texts
 
 
 def tokenize_with_spacy(texts, nlp):

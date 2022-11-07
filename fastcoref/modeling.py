@@ -23,13 +23,14 @@ logging.basicConfig(format='%(asctime)s - %(levelname)s - \t %(message)s',
 
 
 class CorefResult:
-    def __init__(self, text, clusters, char_map, reverse_char_map, coref_logit, text_idx):
+    def __init__(self, text, clusters, char_map, reverse_char_map, coref_logit, text_idx, tokenized_text=None):
         self.text = text
         self.clusters = clusters
         self.char_map = char_map
         self.reverse_char_map = reverse_char_map
         self.coref_logit = coref_logit
         self.text_idx = text_idx
+        self.tokenized_text = tokenized_text
 
     def get_clusters(self, as_strings=True):
         if not as_strings:
@@ -37,6 +38,11 @@ class CorefResult:
 
         return [[self.text[self.char_map[mention][1][0]:self.char_map[mention][1][1]] for mention in cluster]
                 for cluster in self.clusters]
+
+    def get_clusters_tokenized(self):
+        if not self.tokenized_text:
+            raise ValueError("Tokenized version is only if you called predict with pretokenized text")
+        return self.clusters
 
     def get_logit(self, span_i, span_j):
         if span_i not in self.reverse_char_map:
@@ -51,6 +57,11 @@ class CorefResult:
             return self.coref_logit[span_j_idx, span_i_idx]
 
         return self.coref_logit[span_i_idx, span_j_idx]
+
+    def get_logit_tokenized(self, span_token_i, span_token_j):
+        if not self.tokenized_text:
+            raise ValueError("Tokenized version is only if you called predict with pretokenized text")
+        return self.get_logit(self.char_map[span_token_i][1], self.char_map[span_token_j][1])
 
     def __str__(self):
         if len(self.text) > 50:
@@ -120,10 +131,10 @@ class CorefModel(ABC):
         self.device = torch.device(self.device)
         self.n_gpu = torch.cuda.device_count()
 
-    def _create_dataset(self, texts):
+    def _create_dataset(self, texts, tokenized_texts=None):
         logger.info(f'Tokenize {len(texts)} texts...')
         # Save original text ordering for later use
-        dataset = Dataset.from_dict({'text': texts,'idx':range(len(texts))})
+        dataset = Dataset.from_dict({'text': texts, 'tokenized_text': tokenized_texts, 'idx':range(len(texts))})
         dataset = dataset.map(
             encode, batched=True, batch_size=10000,
             fn_kwargs={'tokenizer': self.tokenizer, 'nlp': self.nlp}
@@ -150,6 +161,7 @@ class CorefModel(ABC):
         with tqdm(desc="Inference", total=len(dataloader.dataset)) as progress_bar:
             for batch in dataloader:
                 texts = batch['text']
+                tokenized_texts = batch['tokenized_text']
                 subtoken_map = batch['subtoken_map']
                 token_to_char = batch['offset_mapping']
                 idxs = batch['idx']
@@ -172,7 +184,7 @@ class CorefModel(ABC):
                     res = CorefResult(
                         text=texts[i], clusters=predicted_clusters,
                         char_map=char_map, reverse_char_map=reverse_char_map,
-                        coref_logit=coref_logits[i], text_idx=idxs[i]
+                        coref_logit=coref_logits[i], text_idx=idxs[i], tokenized_text=tokenized_texts[i]
                     )
                     results.append(res)
 
@@ -180,15 +192,19 @@ class CorefModel(ABC):
 
         return sorted(results, key=lambda res: res.text_idx)
 
-    def predict(self, texts, max_tokens_in_batch=10000, output_file=None):
+    def predict(self, texts, tokenized_texts=None, max_tokens_in_batch=10000, output_file=None):
         is_str = False
         if isinstance(texts, str):
             texts = [texts]
             is_str = True
-        if not isinstance(texts, list):
+        elif texts is None:
+            if tokenized_texts is None:
+                raise ValueError('either texts or tokenized_texts arguments expected to have a value')
+            texts = [" ".join(tokenized_text) for tokenized_text in tokenized_texts]
+        elif not isinstance(texts, list):
             raise ValueError(f'texts argument expected to be a list of strings, or one single text string. provided {type(texts)}')
 
-        dataset = self._create_dataset(texts=texts)
+        dataset = self._create_dataset(texts=texts, tokenized_texts=tokenized_texts)
         dataloader = self._prepare_batches(dataset, max_tokens_in_batch)
 
         preds = self._inference(dataloader=dataloader)
