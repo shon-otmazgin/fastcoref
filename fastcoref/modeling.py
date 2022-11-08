@@ -23,7 +23,7 @@ logging.basicConfig(format='%(asctime)s - %(levelname)s - \t %(message)s',
 
 
 class CorefResult:
-    def __init__(self, text, clusters, char_map, reverse_char_map, coref_logit, text_idx, tokenized_text=None):
+    def __init__(self, text, clusters, char_map, reverse_char_map, coref_logit, text_idx, tokenized_text=None, subtoken_map=None):
         self.text = text
         self.clusters = clusters
         self.char_map = char_map
@@ -31,6 +31,13 @@ class CorefResult:
         self.coref_logit = coref_logit
         self.text_idx = text_idx
         self.tokenized_text = tokenized_text
+        self.subtoken_map = subtoken_map  # subtoken index -> token index
+        # (token start offset, token end offset) -> subtoken span index
+        self.reverse_subtoken_map = None
+        if subtoken_map:
+            self.reverse_subtoken_map = dict()
+            for (stok_start, stok_end), (span_i, _) in reverse_char_map.items():
+                self.reverse_subtoken_map[(subtoken_map[stok_start], subtoken_map[stok_end])] = span_i
 
     def get_clusters(self, as_strings=True):
         if not as_strings:
@@ -42,7 +49,7 @@ class CorefResult:
     def get_clusters_tokenized(self):
         if not self.tokenized_text:
             raise ValueError("Tokenized version is only if you called predict with pretokenized text")
-        return self.clusters
+        return [[(self.subtoken_map[mention[0]], self.subtoken_map[mention[1]]) for mention in cluster] for cluster in self.clusters]
 
     def get_logit(self, span_i, span_j):
         if span_i not in self.reverse_char_map:
@@ -59,9 +66,16 @@ class CorefResult:
         return self.coref_logit[span_i_idx, span_j_idx]
 
     def get_logit_tokenized(self, span_token_i, span_token_j):
-        if not self.tokenized_text:
+        if not self.tokenized_text or not self.reverse_subtoken_map:
             raise ValueError("Tokenized version is only if you called predict with pretokenized text")
-        return self.get_logit(self.char_map[span_token_i][1], self.char_map[span_token_j][1])
+        if span_token_i not in self.reverse_subtoken_map:
+            raise ValueError(f'span_token_i="{self.text[span_token_i[0]:span_token_i[1]]}" is not an entity in this model!')
+        if span_token_j not in self.reverse_subtoken_map:
+            raise ValueError(f'span_token_j="{self.text[span_token_j[0]:span_token_j[1]]}" is not an entity in this model!')
+        return self.get_logit[
+            self.reverse_subtoken_map[span_token_i],
+            self.reverse_subtoken_map[span_token_j],
+        ]
 
     def __str__(self):
         if len(self.text) > 50:
@@ -189,6 +203,7 @@ class CorefModel(ABC):
                         coref_logit=coref_logits[i],
                         text_idx=idxs[i],
                         tokenized_text=tokenized_texts[i] if tokenized_texts else None,
+                        subtoken_map=subtoken_map[i],
                     )
                     results.append(res)
 
