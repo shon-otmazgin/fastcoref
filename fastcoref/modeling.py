@@ -182,9 +182,13 @@ class CorefModel(ABC):
                     )
 
                     res = CorefResult(
-                        text=texts[i], clusters=predicted_clusters,
-                        char_map=char_map, reverse_char_map=reverse_char_map,
-                        coref_logit=coref_logits[i], text_idx=idxs[i], tokenized_text=tokenized_texts[i]
+                        text=texts[i],
+                        clusters=predicted_clusters,
+                        char_map=char_map,
+                        reverse_char_map=reverse_char_map,
+                        coref_logit=coref_logits[i],
+                        text_idx=idxs[i],
+                        tokenized_text=tokenized_texts[i] if tokenized_texts else None,
                     )
                     results.append(res)
 
