@@ -73,8 +73,8 @@ class CorefResult:
             raise ValueError(f'span_token_i="{self.text[span_token_i[0]:span_token_i[1]]}" is not an entity in this model!')
         if span_token_j not in self.reverse_subtoken_map:
             raise ValueError(f'span_token_j="{self.text[span_token_j[0]:span_token_j[1]]}" is not an entity in this model!')
-        span_larger_idx, span_smaller_idx = sorted(self.reverse_subtoken_map[span_token_i], self.reverse_subtoken_map[span_token_j], reversed=True)
-        return self.coref_logit[span_larger_idx, span_smaller_idx]
+        sorted_span = sorted([self.reverse_subtoken_map[span_token_i], self.reverse_subtoken_map[span_token_j]], reversed=True)
+        return self.coref_logit[sorted_span[0], sorted_span[1]]
 
     def __str__(self):
         if len(self.text) > 50:
