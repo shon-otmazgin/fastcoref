@@ -37,7 +37,8 @@ class CorefResult:
         if subtoken_map:
             self.reverse_subtoken_map = dict()
             for (stok_start, stok_end), (span_i, _) in char_map.items():
-                self.reverse_subtoken_map[(subtoken_map[stok_start], subtoken_map[stok_end])] = span_i
+                if stok_start is not None and stok_end is not None:
+                    self.reverse_subtoken_map[(subtoken_map[stok_start], subtoken_map[stok_end])] = span_i
 
     def get_clusters(self, as_strings=True):
         if not as_strings:
