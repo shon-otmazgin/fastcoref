@@ -147,7 +147,7 @@ class CorefModel(ABC):
     def _create_dataset(self, texts, tokenized_texts=None):
         logger.info(f'Tokenize {len(texts)} texts...')
         # Save original text ordering for later use
-        dataset = Dataset.from_dict({'text': texts, 'tokenized_text': [] if not tokenized_texts else tokenized_texts, 'idx':range(len(texts))})
+        dataset = Dataset.from_dict({'text': texts, 'tokenized_text': [None for _ in range(len(texts))] if not tokenized_texts else tokenized_texts, 'idx':range(len(texts))})
         dataset = dataset.map(
             encode, batched=True, batch_size=10000,
             fn_kwargs={'tokenizer': self.tokenizer, 'nlp': self.nlp}

@@ -84,7 +84,7 @@ def update_metrics(metrics, span_starts, span_ends, gold_clusters, predicted_clu
 
 
 def encode(batch, tokenizer, nlp):
-    if batch['tokenized_text']:
+    if len(batch['tokenized_text']) > 0 and batch['tokenized_text'][0] is not None:
         tokenized_texts = preprocess_tokenized_texts(batch['tokenized_text'])
     else:
         tokenized_texts = tokenize_with_spacy(batch['text'], nlp)
