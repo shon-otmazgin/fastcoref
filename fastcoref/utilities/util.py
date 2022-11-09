@@ -113,7 +113,13 @@ def tokenize_with_spacy(texts, nlp):
         return tokens, offset_mapping
 
     tokenized_texts = {'tokens': [], 'offset_mapping': []}
-    docs = nlp.pipe(texts, disable=["tagger", "parser", "lemmatizer", "ner", "textcat", "fastcoref"])
+
+    # Edge case - Also disable other custom components
+    all_pipe_names = nlp.pipe_names
+    tokenizer_pipe_names = ["tok2vec"]
+
+    disabled_pipe_names = [pipe_name for pipe_name in all_pipe_names if pipe_name not in tokenizer_pipe_names]
+    docs = nlp.pipe(texts, disable=disabled_pipe_names)
     for doc in docs:
         tokens, offset_mapping = handle_doc(doc)
         tokenized_texts['tokens'].append(tokens)
