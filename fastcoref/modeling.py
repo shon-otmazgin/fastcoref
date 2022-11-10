@@ -223,7 +223,7 @@ class CorefModel(ABC):
 
         if not _is_valid_text_input(texts):
             raise ValueError(
-                "text input must of type `str` (single example), `List[str]` (batch or single pretokenized example) "
+                "text input must be of type `str` (single example), `List[str]` (batch or single pretokenized example) "
                 "or `List[List[str]]` (batch of pretokenized examples)."
             )
 
