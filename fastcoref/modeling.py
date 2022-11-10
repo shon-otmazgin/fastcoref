@@ -156,7 +156,7 @@ class CorefModel(ABC):
         results = []
         with tqdm(desc="Inference", total=len(dataloader.dataset)) as progress_bar:
             for batch in dataloader:
-                texts_or_tokens = batch['text']
+                texts = batch['text']
                 subtoken_map = batch['subtoken_map']
                 token_to_char = batch['offset_mapping']
                 idxs = batch['idx']
@@ -168,7 +168,7 @@ class CorefModel(ABC):
                 span_starts, span_ends, mention_logits, coref_logits = outputs_np
                 doc_indices, mention_to_antecedent = create_mention_to_antecedent(span_starts, span_ends, coref_logits)
 
-                for i in range(len(texts_or_tokens)):
+                for i in range(len(texts)):
                     doc_mention_to_antecedent = mention_to_antecedent[np.nonzero(doc_indices == i)]
                     predicted_clusters = create_clusters(doc_mention_to_antecedent)
 
@@ -177,13 +177,13 @@ class CorefModel(ABC):
                     )
 
                     res = CorefResult(
-                        text=texts_or_tokens[i], clusters=predicted_clusters,
+                        text=texts[i], clusters=predicted_clusters,
                         char_map=char_map, reverse_char_map=reverse_char_map,
                         coref_logit=coref_logits[i], text_idx=idxs[i]
                     )
                     results.append(res)
 
-                progress_bar.update(n=len(texts_or_tokens))
+                progress_bar.update(n=len(texts))
 
         return sorted(results, key=lambda res: res.text_idx)
 
