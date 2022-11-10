@@ -197,6 +197,7 @@ class CorefModel(ABC):
         Each sequence can be a string or a list of strings (pretokenized string).
         If the sequences are provided as list of strings (pretokenized), you must set is_split_into_words=True
         (to lift the ambiguity with a batch of sequences).
+        is_split_into_words - indicate if the texts input is tokenized
         """
 
         # Input type checking for clearer error
