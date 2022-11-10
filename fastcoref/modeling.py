@@ -2,6 +2,8 @@ import json
 from abc import ABC
 
 import logging
+from typing import List, Union
+
 import torch
 import transformers
 import numpy as np
@@ -120,13 +122,18 @@ class CorefModel(ABC):
         self.device = torch.device(self.device)
         self.n_gpu = torch.cuda.device_count()
 
-    def _create_dataset(self, texts):
-        logger.info(f'Tokenize {len(texts)} texts...')
+    def _create_dataset(self, texts, is_split_into_words):
+        logger.info(f'Tokenize {len(texts)} inputs...')
+
         # Save original text ordering for later use
-        dataset = Dataset.from_dict({'text': texts,'idx':range(len(texts))})
+        dataset = {'text': texts, 'idx': range(len(texts))}
+        if is_split_into_words:
+            dataset['tokens'] = texts
+
+        dataset = Dataset.from_dict(dataset)
         dataset = dataset.map(
             encode, batched=True, batch_size=10000,
-            fn_kwargs={'tokenizer': self.tokenizer, 'nlp': self.nlp}
+            fn_kwargs={'tokenizer': self.tokenizer, 'nlp': self.nlp if not is_split_into_words else None}
         )
 
         return dataset
@@ -149,7 +156,7 @@ class CorefModel(ABC):
         results = []
         with tqdm(desc="Inference", total=len(dataloader.dataset)) as progress_bar:
             for batch in dataloader:
-                texts = batch['text']
+                texts_or_tokens = batch['text']
                 subtoken_map = batch['subtoken_map']
                 token_to_char = batch['offset_mapping']
                 idxs = batch['idx']
@@ -161,7 +168,7 @@ class CorefModel(ABC):
                 span_starts, span_ends, mention_logits, coref_logits = outputs_np
                 doc_indices, mention_to_antecedent = create_mention_to_antecedent(span_starts, span_ends, coref_logits)
 
-                for i in range(len(texts)):
+                for i in range(len(texts_or_tokens)):
                     doc_mention_to_antecedent = mention_to_antecedent[np.nonzero(doc_indices == i)]
                     predicted_clusters = create_clusters(doc_mention_to_antecedent)
 
@@ -170,25 +177,64 @@ class CorefModel(ABC):
                     )
 
                     res = CorefResult(
-                        text=texts[i], clusters=predicted_clusters,
+                        text=texts_or_tokens[i], clusters=predicted_clusters,
                         char_map=char_map, reverse_char_map=reverse_char_map,
                         coref_logit=coref_logits[i], text_idx=idxs[i]
                     )
                     results.append(res)
 
-                progress_bar.update(n=len(texts))
+                progress_bar.update(n=len(texts_or_tokens))
 
         return sorted(results, key=lambda res: res.text_idx)
 
-    def predict(self, texts, max_tokens_in_batch=10000, output_file=None):
-        is_str = False
-        if isinstance(texts, str):
-            texts = [texts]
-            is_str = True
-        if not isinstance(texts, list):
-            raise ValueError(f'texts argument expected to be a list of strings, or one single text string. provided {type(texts)}')
+    def predict(self,
+                texts: Union[str, List[str], List[List[str]]],  # similar to huggingface tokenizer inputs
+                is_split_into_words: bool = False,
+                max_tokens_in_batch: int = 10000,
+                output_file: str = None):
+        """
+        text (str, List[str], List[List[str]]) — The sequence or batch of sequences to be encoded.
+        Each sequence can be a string or a list of strings (pretokenized string).
+        If the sequences are provided as list of strings (pretokenized), you must set is_split_into_words=True
+        (to lift the ambiguity with a batch of sequences).
+        """
 
-        dataset = self._create_dataset(texts=texts)
+        # Input type checking for clearer error
+        def _is_valid_text_input(t):
+            if isinstance(t, str):
+                # Strings are fine
+                return True
+            elif isinstance(t, (list, tuple)):
+                # List are fine as long as they are...
+                if len(t) == 0:
+                    # ... empty
+                    return True
+                elif isinstance(t[0], str):
+                    # ... list of strings
+                    return True
+                elif isinstance(t[0], (list, tuple)):
+                    # ... list with an empty list or with a list of strings
+                    return len(t[0]) == 0 or isinstance(t[0][0], str)
+                else:
+                    return False
+            else:
+                return False
+
+        if not _is_valid_text_input(texts):
+            raise ValueError(
+                "text input must of type `str` (single example), `List[str]` (batch or single pretokenized example) "
+                "or `List[List[str]]` (batch of pretokenized examples)."
+            )
+
+        if is_split_into_words:
+            is_batched = isinstance(texts, (list, tuple)) and texts and isinstance(texts[0], (list, tuple))
+        else:
+            is_batched = isinstance(texts, (list, tuple))
+
+        if not is_batched:
+            texts = [texts]
+
+        dataset = self._create_dataset(texts, is_split_into_words)
         dataloader = self._prepare_batches(dataset, max_tokens_in_batch)
 
         preds = self._inference(dataloader=dataloader)
@@ -199,7 +245,7 @@ class CorefModel(ABC):
                          'clusters_strings': p.get_clusters(as_strings=True)}
                         for p in preds]
                 f.write('\n'.join(map(json.dumps, data)))
-        if is_str:
+        if not is_batched:
             return preds[0]
         return preds
 
