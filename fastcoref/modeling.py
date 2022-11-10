@@ -2,6 +2,8 @@ import json
 from abc import ABC
 
 import logging
+from typing import List, Union
+
 import torch
 import transformers
 import numpy as np
@@ -120,13 +122,18 @@ class CorefModel(ABC):
         self.device = torch.device(self.device)
         self.n_gpu = torch.cuda.device_count()
 
-    def _create_dataset(self, texts):
-        logger.info(f'Tokenize {len(texts)} texts...')
+    def _create_dataset(self, texts, is_split_into_words):
+        logger.info(f'Tokenize {len(texts)} inputs...')
+
         # Save original text ordering for later use
-        dataset = Dataset.from_dict({'text': texts,'idx':range(len(texts))})
+        dataset = {'text': texts, 'idx': range(len(texts))}
+        if is_split_into_words:
+            dataset['tokens'] = texts
+
+        dataset = Dataset.from_dict(dataset)
         dataset = dataset.map(
             encode, batched=True, batch_size=10000,
-            fn_kwargs={'tokenizer': self.tokenizer, 'nlp': self.nlp}
+            fn_kwargs={'tokenizer': self.tokenizer, 'nlp': self.nlp if not is_split_into_words else None}
         )
 
         return dataset
@@ -180,18 +187,58 @@ class CorefModel(ABC):
 
         return sorted(results, key=lambda res: res.text_idx)
 
-    def predict(self, texts, max_tokens_in_batch=10000, output_file=None):
-        is_str = False
-        if isinstance(texts, str):
-            texts = [texts]
-            is_str = True
-        if not isinstance(texts, list):
-            raise ValueError(f'texts argument expected to be a list of strings, or one single text string. provided {type(texts)}')
+    def predict(self,
+                texts: Union[str, List[str], List[List[str]]],  # similar to huggingface tokenizer inputs
+                is_split_into_words: bool = False,
+                max_tokens_in_batch: int = 10000,
+                output_file: str = None):
+        """
+        texts (str, List[str], List[List[str]]) — The sequence or batch of sequences to be encoded.
+        Each sequence can be a string or a list of strings (pretokenized string).
+        If the sequences are provided as list of strings (pretokenized), you must set is_split_into_words=True
+        (to lift the ambiguity with a batch of sequences).
+        is_split_into_words - indicate if the texts input is tokenized
+        """
 
-        dataset = self._create_dataset(texts=texts)
+        # Input type checking for clearer error
+        def _is_valid_text_input(texts, is_split_into_words):
+            if isinstance(texts, str) and not is_split_into_words:
+                # Strings are fine
+                return True
+            elif isinstance(texts, (list, tuple)):
+                # List are fine as long as they are...
+                if len(texts) == 0:
+                    # ... empty
+                    return True
+                elif all([isinstance(t, str) for t in texts]):
+                    # ... list of strings
+                    return True
+                elif all([isinstance(t, (list, tuple)) for t in texts]):
+                    # ... list with an empty list or with a list of strings
+                    return len(texts[0]) == 0 or isinstance(texts[0][0], str)
+                else:
+                    return False
+            else:
+                return False
+
+        if not _is_valid_text_input(texts, is_split_into_words):
+            raise ValueError(
+                "text input must be of type `str` (single example), `List[str]` (batch or single pretokenized example) "
+                "or `List[List[str]]` (batch of pretokenized examples)."
+            )
+
+        if is_split_into_words:
+            is_batched = isinstance(texts, (list, tuple)) and texts and isinstance(texts[0], (list, tuple))
+        else:
+            is_batched = isinstance(texts, (list, tuple))
+
+        if not is_batched:
+            texts = [texts]
+
+        dataset = self._create_dataset(texts, is_split_into_words)
         dataloader = self._prepare_batches(dataset, max_tokens_in_batch)
 
-        preds = self._inference(dataloader=dataloader)
+        preds = self._inference(dataloader)
         if output_file is not None:
             with open(output_file, 'w') as f:
                 data = [{'text': p.text,
@@ -199,7 +246,7 @@ class CorefModel(ABC):
                          'clusters_strings': p.get_clusters(as_strings=True)}
                         for p in preds]
                 f.write('\n'.join(map(json.dumps, data)))
-        if is_str:
+        if not is_batched:
             return preds[0]
         return preds
 

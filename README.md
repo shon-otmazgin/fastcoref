@@ -54,6 +54,15 @@ preds[0].get_logit(
 > 18.852894
 ```
 
+if your text is already tokenized use `is_split_into_words=True`
+```python
+preds = model.predict(
+   texts = [["We", "are", "so", "happy", "to", "see", "you", "using", "our", "coref", 
+             "package", ".", "This", "package", "is", "very", "fast", "!"]],
+   is_split_into_words=True
+)
+```
+
 Processing can be applied to a collection of texts of any length in a batched and parallel fashion:
 
 ```python
