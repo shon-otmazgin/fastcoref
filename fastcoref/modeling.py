@@ -201,27 +201,27 @@ class CorefModel(ABC):
         """
 
         # Input type checking for clearer error
-        def _is_valid_text_input(t):
-            if isinstance(t, str):
+        def _is_valid_text_input(texts, is_split_into_words):
+            if isinstance(texts, str) and not is_split_into_words:
                 # Strings are fine
                 return True
-            elif isinstance(t, (list, tuple)):
+            elif isinstance(texts, (list, tuple)):
                 # List are fine as long as they are...
-                if len(t) == 0:
+                if len(texts) == 0:
                     # ... empty
                     return True
-                elif isinstance(t[0], str):
+                elif all([isinstance(t, str) for t in texts]):
                     # ... list of strings
                     return True
-                elif isinstance(t[0], (list, tuple)):
+                elif all([isinstance(t, (list, tuple)) for t in texts]):
                     # ... list with an empty list or with a list of strings
-                    return len(t[0]) == 0 or isinstance(t[0][0], str)
+                    return len(texts[0]) == 0 or isinstance(texts[0][0], str)
                 else:
                     return False
             else:
                 return False
 
-        if not _is_valid_text_input(texts):
+        if not _is_valid_text_input(texts, is_split_into_words):
             raise ValueError(
                 "text input must be of type `str` (single example), `List[str]` (batch or single pretokenized example) "
                 "or `List[List[str]]` (batch of pretokenized examples)."
