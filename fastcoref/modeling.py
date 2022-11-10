@@ -193,7 +193,7 @@ class CorefModel(ABC):
                 max_tokens_in_batch: int = 10000,
                 output_file: str = None):
         """
-        text (str, List[str], List[List[str]]) — The sequence or batch of sequences to be encoded.
+        texts (str, List[str], List[List[str]]) — The sequence or batch of sequences to be encoded.
         Each sequence can be a string or a list of strings (pretokenized string).
         If the sequences are provided as list of strings (pretokenized), you must set is_split_into_words=True
         (to lift the ambiguity with a batch of sequences).
