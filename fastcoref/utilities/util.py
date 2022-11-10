@@ -88,7 +88,8 @@ def encode(batch, tokenizer, nlp):
         tokenized_texts = tokenize_with_spacy(batch['text'], nlp)
     else:
         tokenized_texts = batch
-        tokenized_texts['offset_mapping'] = [[None] * len(tokens) for tokens in tokenized_texts['tokens']]
+        tokenized_texts['offset_mapping'] = [(list(zip(range(len(tokens)), range(1, 1 + len(tokens)))))
+                                             for tokens in tokenized_texts['tokens']]
     encoded_batch = tokenizer(
         tokenized_texts['tokens'], add_special_tokens=True, is_split_into_words=True,
         return_length=True, return_attention_mask=False

@@ -149,7 +149,7 @@ class CorefModel(ABC):
 
         return dataloader
 
-    def _inference(self, dataloader):
+    def _inference(self, dataloader, is_split_into_words):
         self.model.eval()
         logger.info(f"***** Running Inference on {len(dataloader.dataset)} texts *****")
 
@@ -237,7 +237,7 @@ class CorefModel(ABC):
         dataset = self._create_dataset(texts, is_split_into_words)
         dataloader = self._prepare_batches(dataset, max_tokens_in_batch)
 
-        preds = self._inference(dataloader=dataloader)
+        preds = self._inference(dataloader, is_split_into_words)
         if output_file is not None:
             with open(output_file, 'w') as f:
                 data = [{'text': p.text,
