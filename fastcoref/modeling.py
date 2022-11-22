@@ -163,6 +163,8 @@ class CorefModel(ABC):
         span_starts, span_ends, mention_logits, coref_logits = outputs_np
         doc_indices, mention_to_antecedent = create_mention_to_antecedent(span_starts, span_ends, coref_logits)
 
+        results = []
+
         for i in range(len(texts)):
             doc_mention_to_antecedent = mention_to_antecedent[np.nonzero(doc_indices == i)]
             predicted_clusters = create_clusters(doc_mention_to_antecedent)
@@ -171,13 +173,15 @@ class CorefModel(ABC):
                 span_starts[i], span_ends[i], token_to_char[i], subtoken_map[i]
             )
 
-            res = CorefResult(
+            result = CorefResult(
                 text=texts[i], clusters=predicted_clusters,
                 char_map=char_map, reverse_char_map=reverse_char_map,
                 coref_logit=coref_logits[i], text_idx=idxs[i]
             )
 
-            return res
+            results.append(result)
+
+        return results
 
     def _inference(self, dataloader):
         self.model.eval()
@@ -187,11 +191,11 @@ class CorefModel(ABC):
         if self.enable_progress_bar:
             with tqdm(desc="Inference", total=len(dataloader.dataset)) as progress_bar:
                 for batch in dataloader:
-                    results.append(self._batch_inference(batch))
-                    progress_bar.update(n=len(batch['texts']))
+                    results.extend(self._batch_inference(batch))
+                    progress_bar.update(n=len(batch['text']))
         else:
             for batch in dataloader:
-                results.append(self._batch_inference(batch))
+                results.extend(self._batch_inference(batch))
 
         return sorted(results, key=lambda res: res.text_idx)
 
