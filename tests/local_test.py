@@ -12,6 +12,11 @@ print(preds)
 preds = model.predict(texts=texts, max_tokens_in_batch=5000, output_file='out_test.jsonlines')
 print(preds)
 
+model = FCoref(device='cpu', enable_progress_bar=False)
+
+preds = model.predict(texts=texts, max_tokens_in_batch=5000, output_file='out_test.jsonlines')
+print(preds)
+
 for p in preds:
     print(p.get_clusters())
     print(p.get_clusters(as_strings=False))
