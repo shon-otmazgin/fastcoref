@@ -66,11 +66,12 @@ class CorefResult:
 
 
 class CorefModel(ABC):
-    def __init__(self, model_name_or_path, coref_class, collator_class, device=None, nlp=None):
+    def __init__(self, model_name_or_path, coref_class, collator_class, enable_progress_bar, device=None, nlp=None):
         self.model_name_or_path = model_name_or_path
         self.device = device
         self.seed = 42
         self._set_device()
+        self.enable_progress_bar = enable_progress_bar
 
         config = AutoConfig.from_pretrained(self.model_name_or_path)
         self.max_segment_len = config.coref_head['max_segment_len']
@@ -149,41 +150,52 @@ class CorefModel(ABC):
 
         return dataloader
 
+    def _batch_inference(self, batch):
+        texts = batch['text']
+        subtoken_map = batch['subtoken_map']
+        token_to_char = batch['offset_mapping']
+        idxs = batch['idx']
+        with torch.no_grad():
+            outputs = self.model(batch, return_all_outputs=True)
+
+        outputs_np = tuple(tensor.cpu().numpy() for tensor in outputs)
+
+        span_starts, span_ends, mention_logits, coref_logits = outputs_np
+        doc_indices, mention_to_antecedent = create_mention_to_antecedent(span_starts, span_ends, coref_logits)
+
+        results = []
+
+        for i in range(len(texts)):
+            doc_mention_to_antecedent = mention_to_antecedent[np.nonzero(doc_indices == i)]
+            predicted_clusters = create_clusters(doc_mention_to_antecedent)
+
+            char_map, reverse_char_map = align_to_char_level(
+                span_starts[i], span_ends[i], token_to_char[i], subtoken_map[i]
+            )
+
+            result = CorefResult(
+                text=texts[i], clusters=predicted_clusters,
+                char_map=char_map, reverse_char_map=reverse_char_map,
+                coref_logit=coref_logits[i], text_idx=idxs[i]
+            )
+
+            results.append(result)
+
+        return results
+
     def _inference(self, dataloader):
         self.model.eval()
         logger.info(f"***** Running Inference on {len(dataloader.dataset)} texts *****")
 
         results = []
-        with tqdm(desc="Inference", total=len(dataloader.dataset)) as progress_bar:
+        if self.enable_progress_bar:
+            with tqdm(desc="Inference", total=len(dataloader.dataset)) as progress_bar:
+                for batch in dataloader:
+                    results.extend(self._batch_inference(batch))
+                    progress_bar.update(n=len(batch['text']))
+        else:
             for batch in dataloader:
-                texts = batch['text']
-                subtoken_map = batch['subtoken_map']
-                token_to_char = batch['offset_mapping']
-                idxs = batch['idx']
-                with torch.no_grad():
-                    outputs = self.model(batch, return_all_outputs=True)
-
-                outputs_np = tuple(tensor.cpu().numpy() for tensor in outputs)
-
-                span_starts, span_ends, mention_logits, coref_logits = outputs_np
-                doc_indices, mention_to_antecedent = create_mention_to_antecedent(span_starts, span_ends, coref_logits)
-
-                for i in range(len(texts)):
-                    doc_mention_to_antecedent = mention_to_antecedent[np.nonzero(doc_indices == i)]
-                    predicted_clusters = create_clusters(doc_mention_to_antecedent)
-
-                    char_map, reverse_char_map = align_to_char_level(
-                        span_starts[i], span_ends[i], token_to_char[i], subtoken_map[i]
-                    )
-
-                    res = CorefResult(
-                        text=texts[i], clusters=predicted_clusters,
-                        char_map=char_map, reverse_char_map=reverse_char_map,
-                        coref_logit=coref_logits[i], text_idx=idxs[i]
-                    )
-                    results.append(res)
-
-                progress_bar.update(n=len(texts))
+                results.extend(self._batch_inference(batch))
 
         return sorted(results, key=lambda res: res.text_idx)
 
@@ -252,14 +264,10 @@ class CorefModel(ABC):
 
 
 class FCoref(CorefModel):
-    def __init__(self, model_name_or_path='biu-nlp/f-coref', device=None, nlp=None):
-        super().__init__(model_name_or_path, FCorefModel, LeftOversCollator, device, nlp)
+    def __init__(self, model_name_or_path='biu-nlp/f-coref', device=None, nlp=None, enable_progress_bar=True):
+        super().__init__(model_name_or_path, FCorefModel, LeftOversCollator, enable_progress_bar, device, nlp)
 
 
 class LingMessCoref(CorefModel):
-    def __init__(self, model_name_or_path='biu-nlp/lingmess-coref', device=None, nlp=None):
-        super().__init__(model_name_or_path, LingMessModel, PadCollator, device, nlp)
-
-
-
-
+    def __init__(self, model_name_or_path='biu-nlp/lingmess-coref', device=None, nlp=None, enable_progress_bar=True):
+        super().__init__(model_name_or_path, LingMessModel, PadCollator, enable_progress_bar, device, nlp)
