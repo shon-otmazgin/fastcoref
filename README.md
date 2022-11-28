@@ -194,3 +194,20 @@ model = FCoref(
 
 
 ## Citation
+
+```
+@inproceedings{otmazgin-etal-2022-f,
+    title = "{F}-coref: Fast, Accurate and Easy to Use Coreference Resolution",
+    author = "Otmazgin, Shon  and
+      Cattan, Arie  and
+      Goldberg, Yoav",
+    booktitle = "Proceedings of the 2nd Conference of the Asia-Pacific Chapter of the Association for Computational Linguistics and the 12th International Joint Conference on Natural Language Processing: System Demonstrations",
+    month = nov,
+    year = "2022",
+    address = "Taipei, Taiwan",
+    publisher = "Association for Computational Linguistics",
+    url = "https://aclanthology.org/2022.aacl-demo.6",
+    pages = "48--56",
+    abstract = "We introduce fastcoref, a python package for fast, accurate, and easy-to-use English coreference resolution. The package is pip-installable, and allows two modes: an accurate mode based on the LingMess architecture, providing state-of-the-art coreference accuracy, and a substantially faster model, F-coref, which is the focus of this work. F-coref allows to process 2.8K OntoNotes documents in 25 seconds on a V100 GPU (compared to 6 minutes for the LingMess model, and to 12 minutes of the popular AllenNLP coreference model) with only a modest drop in accuracy. The fast speed is achieved through a combination of distillation of a compact model from the LingMess model, and an efficient batching implementation using a technique we call leftover batching. https://github.com/shon-otmazgin/fastcoref",
+}
+```
