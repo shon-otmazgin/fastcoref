@@ -121,12 +121,12 @@ nlp.add_pipe(
 By specifying `resolve_text=True` in the pipe call, you can get the resolved text for each cluster:
 
 ```python
-docs = nlp.pipe(
-   texts, 
+doc = nlp(      # for multiple texts use nlp.pipe
+   text, 
    component_cfg={"fastcoref": {'resolve_text': True}}
 )
 
-docs[0]._.resolved_text
+doc._.resolved_text
 > "Alice goes down the rabbit hole. Where Alice would discover a new reality beyond Alice's expectations."
 ```
 
