@@ -80,9 +80,7 @@ class Evaluator:
 
         results = {}
         if evaluation:
-            results = output_evaluation_metrics(
-                metrics_dict=metrics_dict, output_dir=self.output_dir, prefix=prefix
-            )
+            results = output_evaluation_metrics(metrics_dict=metrics_dict, prefix=prefix)
         logger.info(f'Total time: {total_time:.6f} seconds')
 
         return results
