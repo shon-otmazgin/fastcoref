@@ -5,8 +5,8 @@ pandas==1.3.5
 spacy==3.0.6
 en-core-web-sm @ https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.0.0/en_core_web_sm-3.0.0-py3-none-any.whl
 torch==1.10.0
-sentencepiece==0.1.96
-transformers==4.11.3
+sentencepiece==0.1.97
+transformers==4.26.0
 datasets==2.1.0
 wandb==0.12.15
 protobuf==3.20.1
