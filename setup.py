@@ -28,7 +28,9 @@ setup(
         'torch>=1.10.0',
         'transformers>=4.11.3',
         'datasets>=2.5.2',
-        'wandb>=0.13.4'
-      ],
+    ],
+    extras_require={
+        'train': ['wandb>=0.13.4'],
+    },
 
 )
