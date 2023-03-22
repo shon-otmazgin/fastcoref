@@ -66,7 +66,7 @@ class CorefResult:
 
 
 class CorefModel(ABC):
-    def __init__(self, model_name_or_path, coref_class, collator_class, enable_progress_bar, device=None, nlp=None):
+    def __init__(self, model_name_or_path, coref_class, collator_class, enable_progress_bar, device=None, nlp=None, will_use_pretokenized_text=False):
         self.model_name_or_path = model_name_or_path
         self.device = device
         self.seed = 42
@@ -92,7 +92,8 @@ class CorefModel(ABC):
         else:
             raise NotImplementedError(f"Class collator {type(collator_class)} is not supported! "
                                       f"only LeftOversCollator or PadCollator supported")
-        if nlp is not None:
+        if will_use_pretokenized_text or nlp is not None:
+            # will_use_pretokenized_text allows storing an nlp==None, which is useful for pretokenized text
             self.nlp = nlp
         else:
             try:
@@ -239,6 +240,12 @@ class CorefModel(ABC):
                 "or `List[List[str]]` (batch of pretokenized examples)."
             )
 
+        if not is_split_into_words and not self.nlp:
+            raise ValueError(
+                "Model initialized with no nlp component for tokenizing the text, please pass pretokenized text,"
+                "or initialize the model with an nlp component."
+            )
+
         if is_split_into_words:
             is_batched = isinstance(texts, (list, tuple)) and texts and isinstance(texts[0], (list, tuple))
         else:
@@ -264,10 +271,10 @@ class CorefModel(ABC):
 
 
 class FCoref(CorefModel):
-    def __init__(self, model_name_or_path='biu-nlp/f-coref', device=None, nlp=None, enable_progress_bar=True):
-        super().__init__(model_name_or_path, FCorefModel, LeftOversCollator, enable_progress_bar, device, nlp)
+    def __init__(self, model_name_or_path='biu-nlp/f-coref', device=None, nlp=None, enable_progress_bar=True, will_use_pretokenized_text=False):
+        super().__init__(model_name_or_path, FCorefModel, LeftOversCollator, enable_progress_bar, device, nlp, will_use_pretokenized_text)
 
 
 class LingMessCoref(CorefModel):
-    def __init__(self, model_name_or_path='biu-nlp/lingmess-coref', device=None, nlp=None, enable_progress_bar=True):
-        super().__init__(model_name_or_path, LingMessModel, PadCollator, enable_progress_bar, device, nlp)
+    def __init__(self, model_name_or_path='biu-nlp/lingmess-coref', device=None, nlp=None, enable_progress_bar=True, will_use_pretokenized_text=False):
+        super().__init__(model_name_or_path, LingMessModel, PadCollator, enable_progress_bar, device, nlp, will_use_pretokenized_text)
