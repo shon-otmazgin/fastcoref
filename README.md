@@ -11,8 +11,10 @@ The `fastcoref` Python package provides an easy and fast API for coreference inf
 
 ## Installation
 
-```python
+```bash
 pip install fastcoref
+# or for training:
+pip install fastcoref[train]
 ```
 
 ## Demo
