@@ -66,7 +66,7 @@ class CorefResult:
 
 
 class CorefModel(ABC):
-    def __init__(self, model_name_or_path, coref_class, collator_class, enable_progress_bar, device=None, nlp=None):
+    def __init__(self, model_name_or_path, coref_class, collator_class, enable_progress_bar, device=None, nlp="en_core_web_sm"):
         self.model_name_or_path = model_name_or_path
         self.device = device
         self.seed = 42
@@ -92,15 +92,18 @@ class CorefModel(ABC):
         else:
             raise NotImplementedError(f"Class collator {type(collator_class)} is not supported! "
                                       f"only LeftOversCollator or PadCollator supported")
-        if nlp is not None:
-            self.nlp = nlp
+        if nlp is None:
+            self.nlp = None
+            logger.warning(
+                "You didn't specify a spacy model, you'll need to provide tokenized text in the `predict` function."
+            )
         else:
             try:
-                self.nlp = spacy.load("en_core_web_sm", exclude=["tagger", "parser", "lemmatizer", "ner", "textcat"])
+                self.nlp = spacy.load(nlp, exclude=["tagger", "parser", "lemmatizer", "ner", "textcat"])
             except OSError:
                 # TODO: this is a workaround it is not clear how to add "en_core_web_sm" to setup.py
-                download('en_core_web_sm')
-                self.nlp = spacy.load("en_core_web_sm", exclude=["tagger", "parser", "lemmatizer", "ner", "textcat"])
+                download(nlp)
+                self.nlp = spacy.load(nlp, exclude=["tagger", "parser", "lemmatizer", "ner", "textcat"])
 
         self.model, loading_info = coref_class.from_pretrained(
             self.model_name_or_path, config=config,
@@ -239,6 +242,12 @@ class CorefModel(ABC):
                 "or `List[List[str]]` (batch of pretokenized examples)."
             )
 
+        if not is_split_into_words and not self.nlp:
+            raise ValueError(
+                "Model initialized with no nlp component for tokenizing the text, please pass pretokenized text,"
+                "or initialize the model with an nlp component."
+            )
+
         if is_split_into_words:
             is_batched = isinstance(texts, (list, tuple)) and texts and isinstance(texts[0], (list, tuple))
         else:
@@ -264,10 +273,10 @@ class CorefModel(ABC):
 
 
 class FCoref(CorefModel):
-    def __init__(self, model_name_or_path='biu-nlp/f-coref', device=None, nlp=None, enable_progress_bar=True):
+    def __init__(self, model_name_or_path='biu-nlp/f-coref', device=None, nlp="en_core_web_sm", enable_progress_bar=True):
         super().__init__(model_name_or_path, FCorefModel, LeftOversCollator, enable_progress_bar, device, nlp)
 
 
 class LingMessCoref(CorefModel):
-    def __init__(self, model_name_or_path='biu-nlp/lingmess-coref', device=None, nlp=None, enable_progress_bar=True):
+    def __init__(self, model_name_or_path='biu-nlp/lingmess-coref', device=None, nlp="en_core_web_sm", enable_progress_bar=True):
         super().__init__(model_name_or_path, LingMessModel, PadCollator, enable_progress_bar, device, nlp)
