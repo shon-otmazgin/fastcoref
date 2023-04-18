@@ -12,6 +12,7 @@ from transformers import AutoConfig, AutoTokenizer
 from datasets import Dataset
 import spacy
 from spacy.cli import download
+from spacy.language import Language
 
 from fastcoref.coref_models.modeling_fcoref import FCorefModel
 from fastcoref.coref_models.modeling_lingmess import LingMessModel
@@ -97,6 +98,8 @@ class CorefModel(ABC):
             logger.warning(
                 "You didn't specify a spacy model, you'll need to provide tokenized text in the `predict` function."
             )
+        elif isinstance(nlp, Language):
+            self.nlp = nlp
         else:
             try:
                 self.nlp = spacy.load(nlp, exclude=["tagger", "parser", "lemmatizer", "ner", "textcat"])
