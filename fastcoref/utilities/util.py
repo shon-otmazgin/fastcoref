@@ -143,6 +143,7 @@ def align_to_char_level(span_starts, span_ends, token_to_char, subtoken_map=None
             if subtoken_map is not None:
                 new_start, new_end = subtoken_map[new_start], subtoken_map[new_end]
                 if new_start is None or new_end is None:
+                    # this is a special token index
                     char_map[(start, end)] = None, None
                     continue
             if new_token_map is not None:
