@@ -86,12 +86,12 @@ def _load_f_coref_model(args):
 class CorefTrainer:
     def __init__(self, args: TrainingArgs, train_file, dev_file=None, test_file=None):
         import wandb
-        self.wandb_logger = wandb.log
-        self.wandb_runner = wandb.run
 
         transformers.logging.set_verbosity_error()
         self.args = args
         wandb.init(project=self.args.output_dir, config=self.args)
+        self.wandb_logger = wandb.log
+        self.wandb_runner = wandb.run
 
         self._set_device()
 
