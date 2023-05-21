@@ -4,6 +4,7 @@ import numpy as np
 import torch
 import spacy
 from spacy.language import Language
+from spacy.cli import download
 from dataclasses import dataclass
 
 from torch.optim.adamw import AdamW
