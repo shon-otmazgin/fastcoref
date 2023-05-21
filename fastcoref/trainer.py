@@ -84,7 +84,7 @@ def _load_f_coref_model(args):
 
 
 class CorefTrainer:
-    def __init__(self, args: TrainingArgs, train_file, dev_file=None, test_file=None):
+    def __init__(self, args: TrainingArgs, train_file, dev_file=None, test_file=None, nlp=None):
         import wandb
 
         transformers.logging.set_verbosity_error()
@@ -95,7 +95,7 @@ class CorefTrainer:
 
         self._set_device()
 
-        self.nlp = spacy.load("en_core_web_sm", exclude=["tagger", "parser", "lemmatizer", "ner", "textcat"])
+        self.nlp = nlp if nlp != None else spacy.load("en_core_web_sm", exclude=["tagger", "parser", "lemmatizer", "ner", "textcat"])
         self.model, self.tokenizer = _load_f_coref_model(self.args)
         self.model.to(self.device)
 
