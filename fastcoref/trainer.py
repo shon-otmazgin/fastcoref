@@ -3,6 +3,7 @@ import logging
 import numpy as np
 import torch
 import spacy
+from spacy.language import Language
 from dataclasses import dataclass
 
 from torch.optim.adamw import AdamW
@@ -84,7 +85,7 @@ def _load_f_coref_model(args):
 
 
 class CorefTrainer:
-    def __init__(self, args: TrainingArgs, train_file, dev_file=None, test_file=None, nlp=None):
+    def __init__(self, args: TrainingArgs, train_file, dev_file=None, test_file=None, nlp="en_core_web_sm"):
         import wandb
 
         transformers.logging.set_verbosity_error()
@@ -95,7 +96,20 @@ class CorefTrainer:
 
         self._set_device()
 
-        self.nlp = nlp if nlp != None else spacy.load("en_core_web_sm", exclude=["tagger", "parser", "lemmatizer", "ner", "textcat"])
+        if nlp is None:
+            self.nlp = None
+            logger.warning(
+                "You didn't specify a spacy model, you'll need to provide tokenized text in the `predict` function."
+            )
+        elif isinstance(nlp, Language):
+            self.nlp = nlp
+        else:
+            try:
+                self.nlp = spacy.load(nlp, exclude=["tagger", "parser", "lemmatizer", "ner", "textcat"])
+            except OSError:
+                # TODO: this is a workaround it is not clear how to add "en_core_web_sm" to setup.py
+                download(nlp)
+                self.nlp = spacy.load(nlp, exclude=["tagger", "parser", "lemmatizer", "ner", "textcat"])
         self.model, self.tokenizer = _load_f_coref_model(self.args)
         self.model.to(self.device)
 
