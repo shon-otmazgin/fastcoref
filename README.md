@@ -175,7 +175,8 @@ trainer = CorefTrainer(
     args=args,
     train_file='train_file_with_clusters.jsonlines', 
     dev_file='path-to-dev-file',    # optional
-    test_file='path-to-test-file'   # optional
+    test_file='path-to-test-file',   # optional
+    nlp=nlp # optional, for custom nlp class from spacy
 )
 trainer.train()
 trainer.evaluate(test=True)
