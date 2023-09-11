@@ -11,6 +11,8 @@ The `fastcoref` Python package provides an easy and fast API for coreference inf
 
 ## Installation
 
+Note: Requires python **>=3.6,<3.9**!
+
 ```bash
 pip install fastcoref
 # or for training:
