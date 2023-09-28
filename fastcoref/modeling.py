@@ -36,7 +36,8 @@ class CorefResult:
 
     def get_clusters(self, as_strings=True):
         if not as_strings:
-            return [[self.char_map[mention][1] for mention in cluster] for cluster in self.clusters]
+            return [[self.char_map[mention][1] for mention in cluster if None not in self.char_map[mention]] for cluster
+                    in self.clusters]
 
         return [[self.text[self.char_map[mention][1][0]:self.char_map[mention][1][1]]
                  for mention in cluster if None not in self.char_map[mention]] for cluster in self.clusters]
