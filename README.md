@@ -202,6 +202,35 @@ model = FCoref(
 )
 ```
 
+## Changelog
+
+### v2.2.0 — Performance & Stability
+
+This release focuses on performance improvements and critical bug fixes without any changes to model accuracy.
+
+**Critical Bug Fixes:**
+
+- **Fixed batch size calculation that could cause OOM crashes (and system restarts).** The `DynamicBatchSampler` was computing effective batch length from the *shortest* example in a batch, but since the dataset is sorted ascending by length, all subsequent examples are longer. This caused actual GPU memory usage to far exceed `max_tokens_in_batch`, potentially crashing the GPU driver. Now uses the current (longest) example's length for the calculation.
+- **Fixed memory leak in `CorefResult`.** Every prediction stored the full coref logits matrix (`[max_k, max_k+1]` float32) even when `get_logit()` was never called. For large-scale inference this accumulated hundreds of MB. Logits are now stored lazily and can be explicitly released via `result.release_logits()`.
+- **Fixed `set_seed` fragile coupling.** The function assumed the passed object always had `n_gpu` attribute, which could fail silently.
+
+**Performance Improvements:**
+
+- **SDPA attention for FCoref (2-4x attention speedup).** FCoref uses RoBERTa which supports PyTorch's Scaled Dot-Product Attention. LingMess uses Longformer (sparse attention) which is architecturally incompatible with SDPA, so it continues using eager attention.
+- **`torch.inference_mode()` replaces `torch.no_grad()`.** Faster inference by disabling autograd tracking AND tensor version counting (~5-10% speedup).
+- **67x faster tokenization.** Spacy was running `tok2vec` and `attribute_ruler` pipeline components unnecessarily. The package only needs spacy's rule-based tokenizer for word splitting and char offsets. Now uses `nlp.tokenizer.pipe()` directly with all pipeline components excluded.
+- **Optimized cluster label computation during training.** Replaced O(batch × k²) nested Python loops with cluster-based lookup approach using pre-built mention-to-index mappings.
+
+**Modernization:**
+
+- **Updated AMP API.** Replaced deprecated `torch.cuda.amp.GradScaler()` and `torch.cuda.amp.autocast()` with modern `torch.amp.GradScaler('cuda')` and `torch.amp.autocast('cuda')`.
+- **Streaming batch creation for training.** Batches are collected as a list of dicts (no redundant tensor duplication) and shuffled by batch order rather than materializing a full HuggingFace Dataset of all batches.
+
+**Notes:**
+
+- All changes are backward-compatible. The public API (`predict`, `get_clusters`, `get_logit`) is unchanged.
+- Spacy `en_core_web_sm` is still loaded for tokenization rules/vocab, but no pipeline components run. If you pass a custom `nlp` object (e.g. for the spacy component with POS tagging), it will be used as-is.
+
 ## Citation
 
 ```

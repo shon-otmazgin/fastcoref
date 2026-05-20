@@ -1,6 +1,5 @@
 import json
 from abc import ABC
-
 import logging
 from typing import List, Union
 
@@ -19,15 +18,29 @@ from fastcoref.coref_models.modeling_lingmess import LingMessModel
 from fastcoref.utilities.util import set_seed, create_mention_to_antecedent, create_clusters, align_to_char_level, encode
 from fastcoref.utilities.collate import LeftOversCollator, DynamicBatchSampler, PadCollator
 
-# Setup logging
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 _handler = logging.StreamHandler()
 _handler.setFormatter(logging.Formatter('%(asctime)s - %(levelname)s - \t %(message)s', '%m/%d/%Y %H:%M:%S'))
 logger.addHandler(_handler)
 
-# All spacy pipeline components to exclude (we only need the tokenizer)
 _SPACY_EXCLUDE = ["tok2vec", "tagger", "parser", "lemmatizer", "ner", "textcat", "attribute_ruler"]
+
+
+def _is_valid_text_input(texts, is_split_into_words):
+    if isinstance(texts, str) and not is_split_into_words:
+        return True
+    elif isinstance(texts, (list, tuple)):
+        if len(texts) == 0:
+            return True
+        elif all([isinstance(t, str) for t in texts]):
+            return True
+        elif all([isinstance(t, (list, tuple)) for t in texts]):
+            return len(texts[0]) == 0 or isinstance(texts[0][0], str)
+        else:
+            return False
+    else:
+        return False
 
 
 class CorefResult:
@@ -36,7 +49,6 @@ class CorefResult:
         self.clusters = clusters
         self.char_map = char_map
         self.reverse_char_map = reverse_char_map
-        # Store logits lazily - keep as tensor on CPU, only convert on access
         self._coref_logit = coref_logit
         self._coref_logit_np = None
         self.text_idx = text_idx
@@ -60,7 +72,7 @@ class CorefResult:
         if span_j not in self.reverse_char_map:
             raise ValueError(f'span_i="{self.text[span_j[0]:span_j[1]]}" is not an entity in this model!')
 
-        span_i_idx = self.reverse_char_map[span_i][0]   # 0 is to get the span index
+        span_i_idx = self.reverse_char_map[span_i][0]
         span_j_idx = self.reverse_char_map[span_j][0]
 
         if span_i_idx < span_j_idx:
@@ -69,7 +81,6 @@ class CorefResult:
         return self.coref_logit[span_i_idx, span_j_idx]
 
     def release_logits(self):
-        """Explicitly release logit memory when no longer needed."""
         self._coref_logit = None
         self._coref_logit_np = None
 
@@ -95,7 +106,7 @@ class CorefModel(ABC):
 
         config = AutoConfig.from_pretrained(self.model_name_or_path)
         self.max_segment_len = config.coref_head['max_segment_len']
-        self.max_doc_len = config.coref_head['max_doc_len'] if 'max_doc_len' in config.coref_head else None
+        self.max_doc_len = config.coref_head.get('max_doc_len', None)
 
         self.tokenizer = AutoTokenizer.from_pretrained(
             self.model_name_or_path, use_fast=True,
@@ -112,6 +123,7 @@ class CorefModel(ABC):
         else:
             raise NotImplementedError(f"Class collator {type(collator_class)} is not supported! "
                                       f"only LeftOversCollator or PadCollator supported")
+
         if nlp is None:
             self.nlp = None
             logger.warning(
@@ -151,7 +163,6 @@ class CorefModel(ABC):
     def _create_dataset(self, texts, is_split_into_words):
         logger.info(f'Tokenize {len(texts)} inputs...')
 
-        # Save original text ordering for later use
         dataset = {'text': texts, 'idx': range(len(texts))}
         if is_split_into_words:
             dataset['tokens'] = texts
@@ -165,7 +176,7 @@ class CorefModel(ABC):
         return dataset
 
     def _prepare_batches(self, dataset, max_tokens_in_batch):
-        dataloader = DynamicBatchSampler(
+        return DynamicBatchSampler(
             dataset,
             collator=self.collator,
             max_tokens=max_tokens_in_batch,
@@ -173,26 +184,22 @@ class CorefModel(ABC):
             max_doc_len=self.max_doc_len
         )
 
-        return dataloader
-
     def _batch_inference(self, batch):
         texts = batch['text']
         subtoken_map = batch['subtoken_map']
         token_to_char = batch['offset_mapping']
         idxs = batch['idx']
+
         with torch.inference_mode():
             outputs = self.model(batch, return_all_outputs=True)
 
-        # Move to CPU without forcing numpy conversion yet
         span_starts = outputs[0].cpu().numpy()
         span_ends = outputs[1].cpu().numpy()
-        # mention_logits not needed for inference results
         coref_logits = outputs[3].cpu().numpy()
 
         doc_indices, mention_to_antecedent = create_mention_to_antecedent(span_starts, span_ends, coref_logits)
 
         results = []
-
         for i in range(len(texts)):
             doc_mention_to_antecedent = mention_to_antecedent[np.nonzero(doc_indices == i)]
             predicted_clusters = create_clusters(doc_mention_to_antecedent)
@@ -206,7 +213,6 @@ class CorefModel(ABC):
                 char_map=char_map, reverse_char_map=reverse_char_map,
                 coref_logit=coref_logits[i], text_idx=idxs[i]
             )
-
             results.append(result)
 
         return results
@@ -228,38 +234,10 @@ class CorefModel(ABC):
         return sorted(results, key=lambda res: res.text_idx)
 
     def predict(self,
-                texts: Union[str, List[str], List[List[str]]],  # similar to huggingface tokenizer inputs
+                texts: Union[str, List[str], List[List[str]]],
                 is_split_into_words: bool = False,
                 max_tokens_in_batch: int = 10000,
                 output_file: str = None):
-        """
-        texts (str, List[str], List[List[str]]) — The sequence or batch of sequences to be encoded.
-        Each sequence can be a string or a list of strings (pretokenized string).
-        If the sequences are provided as list of strings (pretokenized), you must set is_split_into_words=True
-        (to lift the ambiguity with a batch of sequences).
-        is_split_into_words - indicate if the texts input is tokenized
-        """
-
-        # Input type checking for clearer error
-        def _is_valid_text_input(texts, is_split_into_words):
-            if isinstance(texts, str) and not is_split_into_words:
-                # Strings are fine
-                return True
-            elif isinstance(texts, (list, tuple)):
-                # List are fine as long as they are...
-                if len(texts) == 0:
-                    # ... empty
-                    return True
-                elif all([isinstance(t, str) for t in texts]):
-                    # ... list of strings
-                    return True
-                elif all([isinstance(t, (list, tuple)) for t in texts]):
-                    # ... list with an empty list or with a list of strings
-                    return len(texts[0]) == 0 or isinstance(texts[0][0], str)
-                else:
-                    return False
-            else:
-                return False
 
         if not _is_valid_text_input(texts, is_split_into_words):
             raise ValueError(

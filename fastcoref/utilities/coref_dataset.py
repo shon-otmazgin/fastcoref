@@ -1,8 +1,6 @@
 import json
 import logging
-import os.path
 import random
-from collections import defaultdict
 
 import datasets
 from datasets import Dataset, Sequence, Value
@@ -44,8 +42,6 @@ def _tokenize(tokenizer, tokens, clusters, speakers):
         return_length=True, return_attention_mask=False
     )
 
-    # shifting clusters indices to align with bpe tokens
-    # align clusters is the reason we can't do it in batches.
     new_clusters = [[(encoded_text.word_to_tokens(token_to_new_token_map[start]).start,
                       encoded_text.word_to_tokens(token_to_new_token_map[end]).end - 1)
                      for start, end in cluster] for cluster in clusters]
@@ -53,15 +49,12 @@ def _tokenize(tokenizer, tokens, clusters, speakers):
     return {'tokens': tokens,
             'input_ids': encoded_text['input_ids'],
             'length': encoded_text['length'][0],
-
             'gold_clusters': new_clusters,
-            # tokens to tokens + speakers
             'new_token_map': new_token_to_token_map,
-            # tokens + speakers to bpe
             'subtoken_map': encoded_text.word_ids(),
             }
 
-# TODO: better to do it in batches
+
 def encode(example, tokenizer, nlp):
     if 'tokens' in example and example['tokens']:
         pass
@@ -73,7 +66,6 @@ def encode(example, tokenizer, nlp):
         new_clusters = [[(spacy_doc.char_span(start, end).start,
                           spacy_doc.char_span(start, end).end - 1)
                          for start, end in cluster] for cluster in clusters]
-        # verify alignment
         for cluster, new_cluster in zip(clusters, new_clusters):
             for (s1, e1), (s2, e2) in zip(cluster, new_cluster):
                 mention = [tok.text for tok in nlp(example['text'][s1:e1])]
@@ -92,44 +84,42 @@ def encode(example, tokenizer, nlp):
     return encoded_example
 
 
+def _read_jsonlines(file):
+    with open(file, 'r') as f:
+        for i, line in enumerate(f):
+            doc = json.loads(line)
+            if "text" not in doc and "tokens" not in doc and "sentences" not in doc:
+                raise ValueError(f'The jsonlines should contains at least "text", "sentences" or "tokens" field')
+
+            minimum_doc = {}
+            minimum_doc["doc_key"] = doc.get("doc_key", str(i))
+
+            if "text" not in doc:
+                minimum_doc["text"] = ""
+            else:
+                minimum_doc["text"] = doc["text"]
+
+            if "tokens" in doc:
+                minimum_doc["tokens"] = doc["tokens"]
+            elif "sentences" in doc:
+                minimum_doc["tokens"] = util.flatten(doc["sentences"])
+            else:
+                minimum_doc["tokens"] = []
+
+            if "speakers" not in doc:
+                minimum_doc["speakers"] = []
+            else:
+                minimum_doc["speakers"] = util.flatten(doc["speakers"])
+
+            if "clusters" not in doc:
+                minimum_doc["clusters"] = []
+            else:
+                minimum_doc["clusters"] = doc["clusters"]
+
+            yield minimum_doc
+
+
 def create(file, tokenizer, nlp):
-    def read_jsonlines(file):
-        with open(file, 'r') as f:
-            for i, line in enumerate(f):
-                doc = json.loads(line)
-                if "text" not in doc and "tokens" not in doc and "sentences" not in doc:
-                    raise ValueError(f'The jsonlines should contains at lt least "text", "sentences" or "tokens" field')
-
-                minimum_doc = {}
-                if "doc_key" not in doc:
-                    minimum_doc["doc_key"] = str(i)
-                else:
-                    minimum_doc["doc_key"] = doc["doc_key"]
-
-                if "text" not in doc:
-                    minimum_doc["text"] = ""
-                else:
-                    minimum_doc["text"] = doc["text"]
-
-                if "tokens" in doc:
-                    minimum_doc["tokens"] = doc["tokens"]
-                elif "sentences" in doc:
-                    minimum_doc["tokens"] = util.flatten(doc["sentences"])
-                else:
-                    minimum_doc["tokens"] = []
-
-                if "speakers" not in doc:
-                    minimum_doc["speakers"] = []
-                else:
-                    minimum_doc["speakers"] = util.flatten(doc["speakers"])
-
-                if "clusters" not in doc:
-                    minimum_doc["clusters"] = []
-                else:
-                    minimum_doc["clusters"] = doc["clusters"]
-
-                yield minimum_doc
-
     features = datasets.Features(
         {
             "doc_key": Value("string"),
@@ -140,7 +130,7 @@ def create(file, tokenizer, nlp):
         }
     )
 
-    dataset = Dataset.from_generator(read_jsonlines, features=features, gen_kwargs={'file': file})
+    dataset = Dataset.from_generator(_read_jsonlines, features=features, gen_kwargs={'file': file})
     dataset = dataset.map(
         encode, batched=False,
         fn_kwargs={'tokenizer': tokenizer, 'nlp': nlp},
@@ -151,9 +141,6 @@ def create(file, tokenizer, nlp):
 
 
 def create_batches(sampler, shuffle=True, cache_dir='cache'):
-    """Collect batches from sampler into a list for shuffled training.
-    Stores batch data as-is (lists, not tensors) to avoid memory duplication.
-    Tensors are created on-the-fly during training."""
     batches = []
     for batch in tqdm(sampler, desc="Creating batches for training"):
         batches.append(batch)

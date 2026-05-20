@@ -10,6 +10,10 @@ from fastcoref.utilities.consts import CATEGORIES, STOPWORDS
 from fastcoref.utilities.util import extract_clusters, extract_mentions_to_clusters, mask_tensor, get_pronoun_id, get_category_id
 
 
+def _is_head_param(named_param):
+    return named_param[1].requires_grad and any(hp in named_param[0] for hp in ['coref', 'mention', 'antecedent'])
+
+
 class FullyConnectedLayer(Module):
     def __init__(self, config, input_dim, output_dim, dropout_prob):
         super(FullyConnectedLayer, self).__init__()
@@ -35,7 +39,7 @@ class FullyConnectedLayer(Module):
 class LingMessModel(BertPreTrainedModel):
     all_tied_weights_keys: dict = {}
 
-    def __init__(self, config, attn_implementation="sdpa"):
+    def __init__(self, config):
         super().__init__(config)
         self.max_span_length = config.coref_head['max_span_length']
         self.top_lambda = config.coref_head['top_lambda']
@@ -46,12 +50,9 @@ class LingMessModel(BertPreTrainedModel):
         self.num_cats = len(CATEGORIES) + 1                 # +1 for ALL
         self.all_cats_size = self.ffnn_size * self.num_cats
 
-        # this is how huggingface loading the class model and setting the name of the variable.
-        # Try preferred attn_implementation, fall back to eager if unsupported (e.g. Longformer)
-        try:
-            base_model = AutoModel.from_config(config, attn_implementation=attn_implementation)
-        except ValueError:
-            base_model = AutoModel.from_config(config, attn_implementation="eager")
+        # Longformer uses custom sliding-window + global attention that is
+        # incompatible with SDPA. Must use eager.
+        base_model = AutoModel.from_config(config, attn_implementation="eager")
         LingMessModel.base_model_prefix = base_model.base_model_prefix
         LingMessModel.config_class = base_model.config_class
         setattr(self, self.base_model_prefix, base_model)
@@ -93,32 +94,17 @@ class LingMessModel(BertPreTrainedModel):
             init.uniform_(b, -bound, bound)
 
     def num_parameters(self) -> tuple:
-        def head_filter(x):
-            return x[1].requires_grad and any(hp in x[0] for hp in ['coref', 'mention', 'antecedent'])
-
-        head_params = filter(head_filter, self.named_parameters())
+        head_params = filter(_is_head_param, self.named_parameters())
         head_params = sum(p.numel() for n, p in head_params)
         return super().num_parameters() - head_params, head_params
 
     def _get_span_mask(self, batch_size, k, max_k):
-        """
-        :param batch_size: int
-        :param k: tensor of size [batch_size], with the required k for each example
-        :param max_k: int
-        :return: [batch_size, max_k] of zero-ones, where 1 stands for a valid span and 0 for a padded span
-        """
         size = (batch_size, max_k)
         idx = torch.arange(max_k, device=self.device).unsqueeze(0).expand(size)
         len_expanded = k.unsqueeze(1).expand(size)
         return (idx < len_expanded).int()
 
     def _prune_topk_mentions(self, mention_logits, attention_mask):
-        """
-        :param mention_logits: Shape [batch_size, seq_length, seq_length]
-        :param attention_mask: [batch_size, seq_length]
-        :param top_lambda:
-        :return:
-        """
         batch_size, seq_length, _ = mention_logits.size()
         actual_seq_lengths = torch.sum(attention_mask, dim=-1)  # [batch_size]
 
@@ -158,12 +144,6 @@ class LingMessModel(BertPreTrainedModel):
         return antecedent_logits
 
     def _get_clusters_labels(self, span_starts, span_ends, all_clusters):
-        """
-        :param span_starts: [batch_size, max_k]
-        :param span_ends: [batch_size, max_k]
-        :param all_clusters: [batch_size, max_cluster_size, max_clusters_num, 2]
-        :return: [batch_size, max_k, max_k + 1] - [b, i, j] == 1 if j is antecedent of i
-        """
         batch_size, max_k = span_starts.size()
         new_cluster_labels = np.zeros((batch_size, max_k, max_k))
 
@@ -247,11 +227,6 @@ class LingMessModel(BertPreTrainedModel):
         return loss
 
     def _get_mention_mask(self, mention_logits_or_weights):
-        """
-        Returns a tensor of size [batch_size, seq_length, seq_length] where valid spans
-        (start <= end < start + max_span_length) are 1 and the rest are 0
-        :param mention_logits_or_weights: Either the span mention logits or weights, size [batch_size, seq_length, seq_length]
-        """
         mention_mask = torch.ones_like(mention_logits_or_weights, dtype=self.dtype)
         mention_mask = mention_mask.triu(diagonal=0)
         mention_mask = mention_mask.tril(diagonal=self.max_span_length - 1)

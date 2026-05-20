@@ -108,21 +108,22 @@ def encode(batch, tokenizer, nlp):
     }
 
 
-def tokenize_with_spacy(texts, nlp):
-    def handle_doc(doc):
-        tokens = []
-        offset_mapping = []
-        for tok in doc:
-            tokens.append(tok.text)
-            offset_mapping.append((tok.idx, tok.idx + len(tok.text)))
-        return tokens, offset_mapping
+def _extract_tokens_and_offsets(doc):
+    tokens = []
+    offset_mapping = []
+    for tok in doc:
+        tokens.append(tok.text)
+        offset_mapping.append((tok.idx, tok.idx + len(tok.text)))
+    return tokens, offset_mapping
 
+
+def tokenize_with_spacy(texts, nlp):
     tokenized_texts = {'tokens': [], 'offset_mapping': []}
 
     # Use tokenizer directly — no pipeline components needed for tokenization.
     # This is ~67x faster than nlp.pipe() with components running.
     for doc in nlp.tokenizer.pipe(texts):
-        tokens, offset_mapping = handle_doc(doc)
+        tokens, offset_mapping = _extract_tokens_and_offsets(doc)
         tokenized_texts['tokens'].append(tokens)
         tokenized_texts['offset_mapping'].append(offset_mapping)
 

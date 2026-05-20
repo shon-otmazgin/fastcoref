@@ -2,6 +2,7 @@ import os
 import logging
 import numpy as np
 import torch
+import wandb
 import spacy
 from spacy.language import Language
 from spacy.cli import download
@@ -93,8 +94,6 @@ def _load_f_coref_model(args):
 
 class CorefTrainer:
     def __init__(self, args: TrainingArgs, train_file, dev_file=None, test_file=None, nlp=None):
-        import wandb
-
         transformers.logging.set_verbosity_error()
         self.args = args
         wandb.init(project=self.args.output_dir, config=self.args)
