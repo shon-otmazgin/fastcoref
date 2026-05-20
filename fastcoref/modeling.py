@@ -110,7 +110,8 @@ class CorefModel(ABC):
 
         self.model, loading_info = coref_class.from_pretrained(
             self.model_name_or_path, config=config,
-            output_loading_info=True
+            output_loading_info=True,
+            torch_dtype=torch.bfloat16,
         )
         self.model.to(self.device)
 
