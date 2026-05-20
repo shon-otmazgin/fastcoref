@@ -21,8 +21,10 @@ from fastcoref.utilities.collate import LeftOversCollator, DynamicBatchSampler, 
 
 # Setup logging
 logger = logging.getLogger(__name__)
-logging.basicConfig(format='%(asctime)s - %(levelname)s - \t %(message)s',
-                    datefmt='%m/%d/%Y %H:%M:%S', level=logging.INFO)
+logger.setLevel(logging.INFO)
+_handler = logging.StreamHandler()
+_handler.setFormatter(logging.Formatter('%(asctime)s - %(levelname)s - \t %(message)s', '%m/%d/%Y %H:%M:%S'))
+logger.addHandler(_handler)
 
 
 class CorefResult:
