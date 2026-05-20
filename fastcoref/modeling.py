@@ -96,7 +96,7 @@ class CorefResult:
 
 
 class CorefModel(ABC):
-    def __init__(self, model_name_or_path, coref_class, collator_class, enable_progress_bar, device=None, nlp="en_core_web_sm"):
+    def __init__(self, model_name_or_path, coref_class, collator_class, enable_progress_bar, device=None, nlp="en_core_web_sm", compile_model=False):
         self.model_name_or_path = model_name_or_path
         self.device = device
         self.seed = 42
@@ -153,6 +153,9 @@ class CorefModel(ABC):
 
         set_seed(self)
         transformers.logging.set_verbosity_error()
+
+        if compile_model:
+            self.model = torch.compile(self.model, mode='reduce-overhead')
 
     def _set_device(self):
         if self.device is None:
@@ -274,10 +277,10 @@ class CorefModel(ABC):
 
 
 class FCoref(CorefModel):
-    def __init__(self, model_name_or_path='biu-nlp/f-coref', device=None, nlp="en_core_web_sm", enable_progress_bar=True):
-        super().__init__(model_name_or_path, FCorefModel, LeftOversCollator, enable_progress_bar, device, nlp)
+    def __init__(self, model_name_or_path='biu-nlp/f-coref', device=None, nlp="en_core_web_sm", enable_progress_bar=True, compile_model=False):
+        super().__init__(model_name_or_path, FCorefModel, LeftOversCollator, enable_progress_bar, device, nlp, compile_model)
 
 
 class LingMessCoref(CorefModel):
-    def __init__(self, model_name_or_path='biu-nlp/lingmess-coref', device=None, nlp="en_core_web_sm", enable_progress_bar=True):
-        super().__init__(model_name_or_path, LingMessModel, PadCollator, enable_progress_bar, device, nlp)
+    def __init__(self, model_name_or_path='biu-nlp/lingmess-coref', device=None, nlp="en_core_web_sm", enable_progress_bar=True, compile_model=False):
+        super().__init__(model_name_or_path, LingMessModel, PadCollator, enable_progress_bar, device, nlp, compile_model)
