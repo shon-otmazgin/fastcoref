@@ -1,6 +1,6 @@
 [project]
 name = "fastcoref"
-version = "2.2.1"
+version = "2.2.2"
 description = "F-COREF: Fast, Accurate and Easy to Use Coreference Resolution"
 license = "MIT"
 authors = [
