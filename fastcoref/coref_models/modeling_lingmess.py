@@ -117,13 +117,14 @@ class LingMessModel(BertPreTrainedModel):
 
         span_mask = self._get_span_mask(batch_size, k, max_k)  # [batch_size, max_k]
         # drop the invalid indices and set them to the last index
-        topk_1d_indices = (topk_1d_indices * span_mask) + (1 - span_mask) * ((seq_length ** 2) - 1)  # We take different k for each example
+        seq_length_t = torch.tensor(seq_length, device=mention_logits.device)
+        topk_1d_indices = (topk_1d_indices * span_mask) + (1 - span_mask) * (seq_length_t * seq_length_t - 1)  # We take different k for each example
         # sorting for coref mention order
         sorted_topk_1d_indices, _ = torch.sort(topk_1d_indices, dim=-1)  # [batch_size, max_k]
 
         # gives the row index in 2D matrix
-        topk_mention_start_ids = torch.div(sorted_topk_1d_indices, seq_length, rounding_mode='floor') # [batch_size, max_k]
-        topk_mention_end_ids = sorted_topk_1d_indices % seq_length  # [batch_size, max_k]
+        topk_mention_start_ids = sorted_topk_1d_indices.div(seq_length_t, rounding_mode='floor')  # [batch_size, max_k]
+        topk_mention_end_ids = sorted_topk_1d_indices.remainder(seq_length_t)  # [batch_size, max_k]
 
         topk_mention_logits = mention_logits[torch.arange(batch_size).unsqueeze(-1).expand(batch_size, max_k),
                                              topk_mention_start_ids, topk_mention_end_ids]  # [batch_size, max_k]
