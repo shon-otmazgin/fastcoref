@@ -31,6 +31,8 @@ class FullyConnectedLayer(Module):
 
 
 class FCorefModel(BertPreTrainedModel):
+    all_tied_weights_keys: dict = {}
+
     def __init__(self, config):
         super().__init__(config)
         self.max_span_length = config.coref_head['max_span_length']
@@ -38,7 +40,7 @@ class FCorefModel(BertPreTrainedModel):
         self.ffnn_size = config.coref_head['ffnn_size']
         self.dropout_prob = config.coref_head['dropout_prob']
 
-        base_model = AutoModel.from_config(config)
+        base_model = AutoModel.from_config(config, attn_implementation="eager")
         FCorefModel.base_model_prefix = base_model.base_model_prefix
         FCorefModel.config_class = base_model.config_class
         setattr(self, self.base_model_prefix, base_model)

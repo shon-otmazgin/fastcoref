@@ -33,6 +33,8 @@ class FullyConnectedLayer(Module):
 
 
 class LingMessModel(BertPreTrainedModel):
+    all_tied_weights_keys: dict = {}
+
     def __init__(self, config):
         super().__init__(config)
         self.max_span_length = config.coref_head['max_span_length']
@@ -45,7 +47,7 @@ class LingMessModel(BertPreTrainedModel):
         self.all_cats_size = self.ffnn_size * self.num_cats
 
         # this is how huggingface loading the class model and setting the name of the variable.
-        base_model = AutoModel.from_config(config)
+        base_model = AutoModel.from_config(config, attn_implementation="eager")
         LingMessModel.base_model_prefix = base_model.base_model_prefix
         LingMessModel.config_class = base_model.config_class
         setattr(self, self.base_model_prefix, base_model)
