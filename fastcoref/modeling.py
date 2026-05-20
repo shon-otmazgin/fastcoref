@@ -1,4 +1,5 @@
 import json
+import warnings
 from abc import ABC
 import logging
 from typing import List, Union
@@ -155,7 +156,11 @@ class CorefModel(ABC):
         transformers.logging.set_verbosity_error()
 
         if compile_model:
-            self.model = torch.compile(self.model, mode='reduce-overhead')
+            warnings.filterwarnings('ignore', module='torch._dynamo')
+            warnings.filterwarnings('ignore', module='torch._inductor')
+            logging.getLogger('torch._dynamo').setLevel(logging.ERROR)
+            logging.getLogger('torch._inductor').setLevel(logging.ERROR)
+            self.model = torch.compile(self.model, dynamic=True)
 
     def _set_device(self):
         if self.device is None:
