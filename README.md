@@ -220,6 +220,8 @@ This release focuses on performance improvements and critical bug fixes without 
 - **`torch.inference_mode()` replaces `torch.no_grad()`.** Faster inference by disabling autograd tracking AND tensor version counting (~5-10% speedup).
 - **67x faster tokenization.** Spacy was running `tok2vec` and `attribute_ruler` pipeline components unnecessarily. The package only needs spacy's rule-based tokenizer for word splitting and char offsets. Now uses `nlp.tokenizer.pipe()` directly with all pipeline components excluded.
 - **Optimized cluster label computation during training.** Replaced O(batch × k²) nested Python loops with cluster-based lookup approach using pre-built mention-to-index mappings.
+- **80x faster predict() calls.** Removed HuggingFace `Dataset.from_dict()` + `.map()` overhead from the inference path. The framework was serializing the tokenizer via dill/pickle on every call, adding ~237ms of overhead to a 3ms operation. Now calls `encode()` directly with a lightweight dict-based dataset.
+- **20x faster category label computation (LingMess training).** Replaced O(k²) Python loop with vectorized numpy broadcasting for pronoun categories (75% of pairs) and inverted index for entity-entity pairs (only checks pairs sharing at least one word).
 
 **Modernization:**
 

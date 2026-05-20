@@ -8,7 +8,7 @@ import transformers
 import numpy as np
 from tqdm.auto import tqdm
 from transformers import AutoConfig, AutoTokenizer
-from datasets import Dataset
+
 import spacy
 from spacy.cli import download
 from spacy.language import Language
@@ -163,17 +163,15 @@ class CorefModel(ABC):
     def _create_dataset(self, texts, is_split_into_words):
         logger.info(f'Tokenize {len(texts)} inputs...')
 
-        dataset = {'text': texts, 'idx': range(len(texts))}
+        batch = {'text': texts, 'idx': list(range(len(texts)))}
         if is_split_into_words:
-            dataset['tokens'] = texts
+            batch['tokens'] = texts
 
-        dataset = Dataset.from_dict(dataset)
-        dataset = dataset.map(
-            encode, batched=True, batch_size=10000,
-            fn_kwargs={'tokenizer': self.tokenizer, 'nlp': self.nlp if not is_split_into_words else None}
-        )
+        encoded = encode(batch, self.tokenizer, self.nlp if not is_split_into_words else None)
+        encoded['text'] = texts
+        encoded['idx'] = list(range(len(texts)))
 
-        return dataset
+        return encoded
 
     def _prepare_batches(self, dataset, max_tokens_in_batch):
         return DynamicBatchSampler(

@@ -7,6 +7,27 @@ from fastcoref.utilities.util import pad_clusters
 logger = logging.getLogger(__name__)
 
 
+def _sort_dict_dataset(dataset):
+    lengths = dataset['length']
+    sorted_indices = sorted(range(len(lengths)), key=lambda i: lengths[i])
+    keys = list(dataset.keys())
+    sorted_dataset = _DictDataset({k: [dataset[k][i] for i in sorted_indices] for k in keys})
+    return sorted_dataset
+
+
+class _DictDataset:
+    def __init__(self, data):
+        self._data = data
+        self._len = len(next(iter(data.values())))
+
+    def __iter__(self):
+        for i in range(self._len):
+            yield {k: v[i] for k, v in self._data.items()}
+
+    def __len__(self):
+        return self._len
+
+
 class LeftOversCollator:
     def __init__(self, tokenizer, device, max_segment_len):
         self.tokenizer = tokenizer
@@ -76,10 +97,15 @@ class PadCollator:
 class DynamicBatchSampler:
     def __init__(self, dataset, collator, max_tokens, max_segment_len, max_doc_len=None):
         self.max_tokens = max_tokens
-        self.dataset = dataset.sort('length', reverse=False)
         self.collator = collator
         self.max_segment_len = max_segment_len
         self.max_doc_len = max_doc_len
+
+        # Support both HuggingFace Dataset and plain dict-of-lists
+        if isinstance(dataset, dict):
+            self.dataset = _sort_dict_dataset(dataset)
+        else:
+            self.dataset = dataset.sort('length', reverse=False)
 
     def __iter__(self):
         batch = []
@@ -102,7 +128,6 @@ class DynamicBatchSampler:
             yield self.collator(batch)
 
     def __len__(self):
-        # Compute number of batches without materializing them
         count = 0
         batch_size = 0
         for example in self.dataset:

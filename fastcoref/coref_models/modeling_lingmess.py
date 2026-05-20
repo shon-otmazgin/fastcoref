@@ -6,8 +6,10 @@ from torch.nn import Module, Linear, LayerNorm, Dropout, init
 from transformers import BertPreTrainedModel, AutoModel
 from transformers.activations import ACT2FN
 
+from collections import defaultdict
+
 from fastcoref.utilities.consts import CATEGORIES, STOPWORDS
-from fastcoref.utilities.util import extract_clusters, extract_mentions_to_clusters, mask_tensor, get_pronoun_id, get_category_id
+from fastcoref.utilities.util import extract_clusters, extract_mentions_to_clusters, mask_tensor, get_pronoun_id
 
 
 def _is_head_param(named_param):
@@ -180,25 +182,66 @@ class LingMessModel(BertPreTrainedModel):
     def _get_categories_labels(self, tokens, subtoken_map, new_token_map, span_starts, span_ends):
         batch_size, max_k = span_starts.size()
 
-        # Pre-compute span info for all spans
-        spans = []
-        for b, (starts, ends) in enumerate(zip(span_starts.cpu().tolist(), span_ends.cpu().tolist())):
-            doc_spans = []
-            for start, end in zip(starts, ends):
-                token_indices = [new_token_map[b][idx] for idx in set(subtoken_map[b][start:end + 1]) - {None}]
-                span = {tokens[b][idx].lower() for idx in token_indices if idx is not None}
-                pronoun_id = get_pronoun_id(span)
-                doc_spans.append((span - STOPWORDS, pronoun_id))
-            spans.append(doc_spans)
+        # Pre-compute span word sets and pronoun IDs
+        all_span_words = []
+        all_pronoun_ids = np.zeros((batch_size, max_k), dtype=np.int64)
 
-        # Vectorized category computation using numpy
+        for b, (starts, ends) in enumerate(zip(span_starts.cpu().tolist(), span_ends.cpu().tolist())):
+            doc_span_words = []
+            for idx, (start, end) in enumerate(zip(starts, ends)):
+                token_indices = [new_token_map[b][i] for i in set(subtoken_map[b][start:end + 1]) - {None}]
+                span = {tokens[b][i].lower() for i in token_indices if i is not None}
+                all_pronoun_ids[b, idx] = get_pronoun_id(span)
+                doc_span_words.append(frozenset(span - STOPWORDS))
+            all_span_words.append(doc_span_words)
+
         categories_labels = np.full((batch_size, max_k, max_k), -1, dtype=np.int64)
+
         for b in range(batch_size):
-            doc_spans = spans[b]
-            for i in range(1, max_k):
-                span_i = doc_spans[i]
-                for j in range(i):
-                    categories_labels[b, i, j] = get_category_id(span_i, doc_spans[j])
+            pids = all_pronoun_ids[b]
+            span_words = all_span_words[b]
+
+            # Vectorize pronoun categories using broadcasting
+            pi = pids[:, None]  # [max_k, 1]
+            pj = pids[None, :]  # [1, max_k]
+            both_pron = (pi > -1) & (pj > -1)
+            one_pron = ((pi > -1) | (pj > -1)) & ~both_pron
+            same_group = pi == pj
+
+            categories_labels[b][both_pron & same_group] = CATEGORIES['pron-pron-comp']
+            categories_labels[b][both_pron & ~same_group] = CATEGORIES['pron-pron-no-comp']
+            categories_labels[b][one_pron] = CATEGORIES['pron-ent']
+
+            # Entity-entity pairs: use inverted index to find match/contain candidates
+            ent_indices = np.where(pids == -1)[0]
+            # Default all ent-ent lower-triangle pairs to 'other'
+            for i in ent_indices:
+                for j in ent_indices:
+                    if j < i:
+                        categories_labels[b, i, j] = CATEGORIES['other']
+
+            # Build inverted index: word -> entity span indices
+            word_to_ents = defaultdict(list)
+            for idx in ent_indices:
+                for word in span_words[idx]:
+                    word_to_ents[word].append(idx)
+
+            # Only check pairs sharing at least one word for match/contain
+            for i in ent_indices:
+                span_i = span_words[i]
+                candidates = set()
+                for word in span_i:
+                    candidates.update(word_to_ents[word])
+                candidates.discard(i)
+
+                for j in candidates:
+                    if j >= i:
+                        continue
+                    span_j = span_words[j]
+                    if span_i == span_j:
+                        categories_labels[b, i, j] = CATEGORIES['match']
+                    elif span_i.issubset(span_j) or span_j.issubset(span_i):
+                        categories_labels[b, i, j] = CATEGORIES['contain']
 
         categories_labels = torch.tensor(categories_labels, device=self.device)
         categories_masks = [categories_labels == cat_id for cat_id in range(self.num_cats - 1)] + [categories_labels != -1]
