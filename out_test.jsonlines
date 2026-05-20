@@ -1,0 +1,3 @@
+{"text": "We are so happy to see you using our coref package. This package is very fast!", "clusters": [[[0, 2], [33, 36]], [[33, 50], [52, 64]]], "clusters_strings": [["We", "our"], ["our coref package", "This package"]]}
+{"text": "The man tried to put the boot on his foot but it was too small.", "clusters": [[[0, 7], [33, 36]], [[33, 41], [46, 48]]], "clusters_strings": [["The man", "his"], ["his foot", "it"]]}
+{"text": "I have a dog. The dog's toys are really cool.", "clusters": [[[7, 12], [14, 23]]], "clusters_strings": [["a dog", "The dog's"]]}

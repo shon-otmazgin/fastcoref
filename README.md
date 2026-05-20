@@ -1,8 +1,10 @@
+# Fastcoref
+
 This repository is the official implementation of the paper ["F-COREF: Fast, Accurate and Easy to Use Coreference Resolution"](https://arxiv.org/abs/2209.04280).
 
 The `fastcoref` Python package provides an easy and fast API for coreference information with only few lines of code without any prepossessing steps.
 
-- [Installation](#Installation)
+- [Installation](#installation)
 - [Demo](#demo)
 - [Quick start](#quick-start)
 - [Spacy component](#spacy-component)
@@ -57,9 +59,10 @@ preds[0].get_logit(
 ```
 
 if your text is already tokenized use `is_split_into_words=True`
+
 ```python
 preds = model.predict(
-   texts = [["We", "are", "so", "happy", "to", "see", "you", "using", "our", "coref", 
+   texts = [["We", "are", "so", "happy", "to", "see", "you", "using", "our", "coref",
              "package", ".", "This", "package", "is", "very", "fast", "!"]],
    is_split_into_words=True
 )
@@ -70,7 +73,7 @@ Processing can be applied to a collection of texts of any length in a batched an
 ```python
 texts = ['text 1', 'text 2',.., 'text n']
 
-# control the batch size 
+# control the batch size
 # with max_tokens_in_batch parameter
 
 preds = model.predict(
@@ -88,9 +91,10 @@ from fastcoref import LingMessCoref
 
 model = LingMessCoref(device='cuda:0')
 ```
+
 ## Spacy component
 
-The package also provides a custom [SpaCy](https://spacy.io/) component that can be plugged into a Spacy(V3) pipeline. 
+The package also provides a custom [SpaCy](https://spacy.io/) component that can be plugged into a Spacy(V3) pipeline.
 The example below shows how to use the pre-trained `FCoref` model.
 
 ```python
@@ -110,12 +114,11 @@ doc._.coref_clusters
 
 **Note**: it is better to `exclude=["parser", "lemmatizer", "ner", "textcat"]` at `spacy.load` since the component only rely on pos tagging.
 
-
 You can also load other models, e.g. the more accurate model `LingMessCoref`:
 
 ```python
 nlp.add_pipe(
-   "fastcoref", 
+   "fastcoref",
    config={'model_architecture': 'LingMessCoref', 'model_path': 'biu-nlp/lingmess-coref', 'device': 'cpu'}
 )
 ```
@@ -124,7 +127,7 @@ By specifying `resolve_text=True` in the pipe call, you can get the resolved tex
 
 ```python
 doc = nlp(      # for multiple texts use nlp.pipe
-   text, 
+   text,
    component_cfg={"fastcoref": {'resolve_text': True}}
 )
 
@@ -133,9 +136,11 @@ doc._.resolved_text
 ```
 
 ## Distil your own coref model
+
 On top of the provided models, the package also provides the ability to train and distill coreference models on your own data, opening the possibility for fast and accurate coreference models for additional languages and domains.
 
 To be able to distil your own model you need:
+
 1. A Large unlabeled dataset, for instance Wikipedia or any other source.
 
    Guidelines:
@@ -147,8 +152,8 @@ To be able to distil your own model you need:
          3. `sentences: List[List[str]]` - a list of lists of tokens (tokenized sentences).
       3. `clusters` information (see next for annotation) as a span start/end indices of the provided field `text`(char level) `tokens`(word level) `sentences`(word level)`.
 
-
 2. A model to annotate the clusters. For instance, It can be the package `LingMessCoref` model.
+
 ```python
 from fastcoref import LingMessCoref
 
@@ -157,7 +162,8 @@ preds = model.predict(texts=texts, output_file='train_file_with_clusters.jsonlin
 
 ```
 
-3. Train and evaluate your own `FCoref`
+1. Train and evaluate your own `FCoref`
+
 ```python
 from fastcoref import TrainingArgs, CorefTrainer
 
@@ -173,7 +179,7 @@ args = TrainingArgs(
 
 trainer = CorefTrainer(
     args=args,
-    train_file='train_file_with_clusters.jsonlines', 
+    train_file='train_file_with_clusters.jsonlines',
     dev_file='path-to-dev-file',    # optional
     test_file='path-to-test-file',   # optional
     nlp=nlp # optional, for custom nlp class from spacy
@@ -186,6 +192,7 @@ trainer.push_to_hub('your-fast-coref-model-path')
 ```
 
 After finish training your own model, push the model the huggingface hub (or keep it local), and load your model:
+
 ```python
 from fastcoref import FCoref
 
@@ -194,7 +201,6 @@ model = FCoref(
    device='cuda:0'
 )
 ```
-
 
 ## Citation
 

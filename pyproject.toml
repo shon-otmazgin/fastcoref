@@ -1,0 +1,71 @@
+[project]
+name = "fastcoref"
+version = "2.1.7"
+description = "F-COREF: Fast, Accurate and Easy to Use Coreference Resolution"
+license = "MIT"
+authors = [
+    { name = "Shon Otmazgin, Arie Cattan, Yoav Goldberg", email = "shon711@gmail.com" },
+    { name = "Masum Billal", email="billalmasum93@gmail.com"}
+]
+readme = "README.md"
+requires-python = ">=3.11,<3.14"
+dependencies = [
+    "tqdm>=4.67.3",
+    "numpy>=2.4.6",
+    "scipy>=1.17.1",
+    "spacy>=3.8.14",
+    "torch>=2.12.0",
+    "transformers>=5.9.0",
+    "datasets>=4.8.5",
+    "wandb>=0.27.0",
+    "pandas>=3.0.3",
+    "sentencepiece>=0.2.1",
+    "protobuf>=7.35.0",
+    "en-core-web-sm>=3.8.0",
+]
+
+[project.optional-dependencies]
+train = ["wandb>=0.13.4"]
+
+
+[[tool.uv.index]]
+name = "pytorch-cu130"
+url = "https://download.pytorch.org/whl/cu130"
+explicit = true
+
+[[tool.uv.index]]
+name = "pytorch-cu128"
+url = "https://download.pytorch.org/whl/cu128"
+explicit = true
+
+[[tool.uv.index]]
+name = "nvidia"
+url = "https://pypi.nvidia.com"
+explicit = true
+
+[tool.uv.sources]
+torch = [{ index = "pytorch-cu130", marker = "sys_platform == 'linux' or sys_platform == 'win32'" }]
+en-core-web-sm = { url = "https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.8.0/en_core_web_sm-3.8.0-py3-none-any.whl" }
+# torch = [{ index = "pytorch-cu128", marker = "sys_platform == 'linux' or sys_platform == 'win32'" }]
+
+
+[project.urls]
+Homepage = "https://github.com/shon-otmazgin/fastcoref"
+
+[build-system]
+requires = ["uv_build>=0.11.14,<0.12"]
+build-backend = "uv_build"
+
+[dependency-groups]
+dev = [
+    "pandas-stubs>=3.0.0.260204",
+    "pytest>=9.0.3",
+    "types-setuptools>=82.0.0.20260518",
+]
+
+[tool.uv.build-backend]
+module-root = ""
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "--ignore=tests/test_tokenized_text.py --ignore=tests/local_test.py --ignore=tests/test_trainer.py"

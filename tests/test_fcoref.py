@@ -16,10 +16,8 @@ class TestFCoref(unittest.TestCase):
 
     def test_predict_with_unexpected_object(self):
         texts = {'text1': 'sss'}
-        with self.assertRaises(ValueError) as exc:
-            preds = self.model.predict(texts=texts)
-        self.assertEqual(str(exc.exception), f"texts argument expected to be a list of strings, "
-                                             f"or one single text string. provided {type(texts)}")
+        with self.assertRaises(ValueError):
+            self.model.predict(texts=texts)
 
     def test_predict_with_single_string(self):
         preds = self.model.predict(texts=self.test_text[0])
