@@ -202,6 +202,33 @@ model = FCoref(
 )
 ```
 
+## Performance
+
+For maximum inference throughput:
+
+```python
+from fastcoref import FCoref
+
+model = FCoref(device='cuda:0', compile_model=True)
+
+# First call triggers compilation (~6s one-time cost)
+preds = model.predict(texts=['warm up text'])
+
+# All subsequent calls run at full speed (~3ms per text)
+preds = model.predict(texts=texts, max_tokens_in_batch=10000)
+```
+
+- Use `compile_model=True` for long-running processes (APIs, pipelines). The one-time 6s compilation cost amortizes quickly.
+- Batch multiple texts in a single `predict()` call — per-text cost drops to ~0.6ms in batches of 10+.
+- `max_tokens_in_batch` controls GPU memory usage. Higher values = faster (more parallelism) but more VRAM. Lower values = safer for limited GPU memory.
+- Release logits after use in large-scale inference to free memory:
+
+```python
+for pred in preds:
+    clusters = pred.get_clusters()
+    pred.release_logits()  # free the logit matrix
+```
+
 ## Changelog
 
 ### v2.2.0 — Performance & Stability
@@ -222,6 +249,7 @@ This release focuses on performance improvements and critical bug fixes without 
 - **Optimized cluster label computation during training.** Replaced O(batch × k²) nested Python loops with cluster-based lookup approach using pre-built mention-to-index mappings.
 - **80x faster predict() calls.** Removed HuggingFace `Dataset.from_dict()` + `.map()` overhead from the inference path. The framework was serializing the tokenizer via dill/pickle on every call, adding ~237ms of overhead to a 3ms operation. Now calls `encode()` directly with a lightweight dict-based dataset.
 - **20x faster category label computation (LingMess training).** Replaced O(k²) Python loop with vectorized numpy broadcasting for pronoun categories (75% of pairs) and inverted index for entity-entity pairs (only checks pairs sharing at least one word).
+- **`torch.compile` support for inference (3.8x forward speedup).** Pass `compile_model=True` to `FCoref()` or `LingMessCoref()`. First call pays a one-time ~6s compilation cost; all subsequent calls benefit from fused GPU kernels. Produces identical outputs to non-compiled.
 
 **Modernization:**
 
