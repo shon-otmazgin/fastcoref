@@ -1,6 +1,7 @@
 import json
 import logging
 import os.path
+import random
 from collections import defaultdict
 
 import datasets
@@ -149,15 +150,15 @@ def create(file, tokenizer, nlp):
     return dataset
 
 
-# TODO: this function can be implemented much much better, e.g. from_generator
 def create_batches(sampler, shuffle=True, cache_dir='cache'):
-    # huggingface dataset cannot save tensors. so we will save lists and on train loop transform to tensors.
-    batches_dict = defaultdict(lambda: [])
+    """Collect batches from sampler into a list for shuffled training.
+    Stores batch data as-is (lists, not tensors) to avoid memory duplication.
+    Tensors are created on-the-fly during training."""
+    batches = []
+    for batch in tqdm(sampler, desc="Creating batches for training"):
+        batches.append(batch)
 
-    for i, batch in enumerate(tqdm(sampler, desc="Creating batches for training")):
-        for k, v in batch.items():
-            batches_dict[k].append(v)
-
-    batches = Dataset.from_dict(batches_dict)
+    if shuffle:
+        random.shuffle(batches)
 
     return batches

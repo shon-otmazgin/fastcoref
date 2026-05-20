@@ -35,7 +35,7 @@ class FullyConnectedLayer(Module):
 class LingMessModel(BertPreTrainedModel):
     all_tied_weights_keys: dict = {}
 
-    def __init__(self, config):
+    def __init__(self, config, attn_implementation="sdpa"):
         super().__init__(config)
         self.max_span_length = config.coref_head['max_span_length']
         self.top_lambda = config.coref_head['top_lambda']
@@ -47,7 +47,11 @@ class LingMessModel(BertPreTrainedModel):
         self.all_cats_size = self.ffnn_size * self.num_cats
 
         # this is how huggingface loading the class model and setting the name of the variable.
-        base_model = AutoModel.from_config(config, attn_implementation="eager")
+        # Try preferred attn_implementation, fall back to eager if unsupported (e.g. Longformer)
+        try:
+            base_model = AutoModel.from_config(config, attn_implementation=attn_implementation)
+        except ValueError:
+            base_model = AutoModel.from_config(config, attn_implementation="eager")
         LingMessModel.base_model_prefix = base_model.base_model_prefix
         LingMessModel.config_class = base_model.config_class
         setattr(self, self.base_model_prefix, base_model)
@@ -169,13 +173,26 @@ class LingMessModel(BertPreTrainedModel):
 
         for b, (starts, ends, gold_clusters) in enumerate(zip(span_starts_cpu, span_ends_cpu, all_clusters_cpu)):
             gold_clusters = extract_clusters(gold_clusters)
+            if not gold_clusters:
+                continue
             mention_to_gold_clusters = extract_mentions_to_clusters(gold_clusters)
-            for i, (start, end) in enumerate(zip(starts, ends)):
-                if (start, end) not in mention_to_gold_clusters:
-                    continue
-                for j, (a_start, a_end) in enumerate(list(zip(starts, ends))[:i]):
-                    if (a_start, a_end) in mention_to_gold_clusters[(start, end)]:
-                        new_cluster_labels[b, i, j] = 1
+            gold_mentions = set(mention_to_gold_clusters.keys())
+
+            # Build mention -> index mapping for fast lookup
+            mention_to_idx = {}
+            for i, (s, e) in enumerate(zip(starts, ends)):
+                if (s, e) in gold_mentions:
+                    mention_to_idx.setdefault((s, e), []).append(i)
+
+            for cluster in gold_clusters:
+                cluster_indices = []
+                for mention in cluster:
+                    if mention in mention_to_idx:
+                        cluster_indices.extend(mention_to_idx[mention])
+                for idx_pos, i in enumerate(cluster_indices):
+                    for j in cluster_indices[:idx_pos]:
+                        if j < i:
+                            new_cluster_labels[b, i, j] = 1
 
         new_cluster_labels = torch.tensor(new_cluster_labels, device=self.device)
         return new_cluster_labels
@@ -183,6 +200,7 @@ class LingMessModel(BertPreTrainedModel):
     def _get_categories_labels(self, tokens, subtoken_map, new_token_map, span_starts, span_ends):
         batch_size, max_k = span_starts.size()
 
+        # Pre-compute span info for all spans
         spans = []
         for b, (starts, ends) in enumerate(zip(span_starts.cpu().tolist(), span_ends.cpu().tolist())):
             doc_spans = []
@@ -193,11 +211,14 @@ class LingMessModel(BertPreTrainedModel):
                 doc_spans.append((span - STOPWORDS, pronoun_id))
             spans.append(doc_spans)
 
-        categories_labels = np.zeros((batch_size, max_k, max_k)) - 1
+        # Vectorized category computation using numpy
+        categories_labels = np.full((batch_size, max_k, max_k), -1, dtype=np.int64)
         for b in range(batch_size):
-            for i in range(max_k):
-                for j in list(range(max_k))[:i]:
-                    categories_labels[b, i, j] = get_category_id(spans[b][i], spans[b][j])
+            doc_spans = spans[b]
+            for i in range(1, max_k):
+                span_i = doc_spans[i]
+                for j in range(i):
+                    categories_labels[b, i, j] = get_category_id(span_i, doc_spans[j])
 
         categories_labels = torch.tensor(categories_labels, device=self.device)
         categories_masks = [categories_labels == cat_id for cat_id in range(self.num_cats - 1)] + [categories_labels != -1]

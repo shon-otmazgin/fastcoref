@@ -33,14 +33,18 @@ class FullyConnectedLayer(Module):
 class FCorefModel(BertPreTrainedModel):
     all_tied_weights_keys: dict = {}
 
-    def __init__(self, config):
+    def __init__(self, config, attn_implementation="sdpa"):
         super().__init__(config)
         self.max_span_length = config.coref_head['max_span_length']
         self.top_lambda = config.coref_head['top_lambda']
         self.ffnn_size = config.coref_head['ffnn_size']
         self.dropout_prob = config.coref_head['dropout_prob']
 
-        base_model = AutoModel.from_config(config, attn_implementation="eager")
+        # Try preferred attn_implementation, fall back to eager if unsupported
+        try:
+            base_model = AutoModel.from_config(config, attn_implementation=attn_implementation)
+        except ValueError:
+            base_model = AutoModel.from_config(config, attn_implementation="eager")
         FCorefModel.base_model_prefix = base_model.base_model_prefix
         FCorefModel.config_class = base_model.config_class
         setattr(self, self.base_model_prefix, base_model)
@@ -132,17 +136,40 @@ class FCorefModel(BertPreTrainedModel):
         """
         batch_size, max_k = span_starts.size()
         new_cluster_labels = torch.zeros((batch_size, max_k, max_k + 1), device='cpu')
+
+        span_starts_cpu = span_starts.cpu()
+        span_ends_cpu = span_ends.cpu()
         all_clusters_cpu = all_clusters.cpu().numpy()
-        for b, (starts, ends, gold_clusters) in enumerate(zip(span_starts.cpu().tolist(), span_ends.cpu().tolist(), all_clusters_cpu)):
-            gold_clusters = extract_clusters(gold_clusters)
+
+        for b in range(batch_size):
+            gold_clusters = extract_clusters(all_clusters_cpu[b])
+            if not gold_clusters:
+                continue
             mention_to_gold_clusters = extract_mentions_to_clusters(gold_clusters)
             gold_mentions = set(mention_to_gold_clusters.keys())
-            for i, (start, end) in enumerate(zip(starts, ends)):
-                if (start, end) not in gold_mentions:
-                    continue
-                for j, (a_start, a_end) in enumerate(list(zip(starts, ends))[:i]):
-                    if (a_start, a_end) in mention_to_gold_clusters[(start, end)]:
-                        new_cluster_labels[b, i, j] = 1
+
+            starts = span_starts_cpu[b].tolist()
+            ends = span_ends_cpu[b].tolist()
+
+            # Build a mapping from mention -> index for fast lookup
+            mention_to_idx = {}
+            for i, (s, e) in enumerate(zip(starts, ends)):
+                if (s, e) in gold_mentions:
+                    mention_to_idx.setdefault((s, e), []).append(i)
+
+            # For each gold cluster, find all pruned mentions that belong to it
+            # and mark all pairs as coreferent
+            for cluster in gold_clusters:
+                cluster_indices = []
+                for mention in cluster:
+                    if mention in mention_to_idx:
+                        cluster_indices.extend(mention_to_idx[mention])
+                # Mark pairs: for each mention i, all earlier mentions j in same cluster are antecedents
+                for idx_pos, i in enumerate(cluster_indices):
+                    for j in cluster_indices[:idx_pos]:
+                        if j < i:
+                            new_cluster_labels[b, i, j] = 1
+
         new_cluster_labels = new_cluster_labels.to(self.device)
         no_antecedents = 1 - torch.sum(new_cluster_labels, dim=-1).bool().float()
         new_cluster_labels[:, :, -1] = no_antecedents
@@ -287,5 +314,3 @@ class FCorefModel(BertPreTrainedModel):
             outputs = (loss, ) + outputs
 
         return outputs
-
-

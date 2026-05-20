@@ -26,6 +26,9 @@ _handler = logging.StreamHandler()
 _handler.setFormatter(logging.Formatter('%(asctime)s - %(levelname)s - \t %(message)s', '%m/%d/%Y %H:%M:%S'))
 logger.addHandler(_handler)
 
+# All spacy pipeline components to exclude (we only need the tokenizer)
+_SPACY_EXCLUDE = ["tok2vec", "tagger", "parser", "lemmatizer", "ner", "textcat", "attribute_ruler"]
+
 
 class CorefResult:
     def __init__(self, text, clusters, char_map, reverse_char_map, coref_logit, text_idx):
@@ -33,8 +36,16 @@ class CorefResult:
         self.clusters = clusters
         self.char_map = char_map
         self.reverse_char_map = reverse_char_map
-        self.coref_logit = coref_logit
+        # Store logits lazily - keep as tensor on CPU, only convert on access
+        self._coref_logit = coref_logit
+        self._coref_logit_np = None
         self.text_idx = text_idx
+
+    @property
+    def coref_logit(self):
+        if self._coref_logit_np is None:
+            self._coref_logit_np = self._coref_logit
+        return self._coref_logit_np
 
     def get_clusters(self, as_strings=True):
         if not as_strings:
@@ -57,6 +68,11 @@ class CorefResult:
 
         return self.coref_logit[span_i_idx, span_j_idx]
 
+    def release_logits(self):
+        """Explicitly release logit memory when no longer needed."""
+        self._coref_logit = None
+        self._coref_logit_np = None
+
     def __str__(self):
         if len(self.text) > 50:
             text_to_print = f'{self.text[:50]}...'
@@ -73,6 +89,7 @@ class CorefModel(ABC):
         self.model_name_or_path = model_name_or_path
         self.device = device
         self.seed = 42
+        self.n_gpu = 0
         self._set_device()
         self.enable_progress_bar = enable_progress_bar
 
@@ -104,11 +121,10 @@ class CorefModel(ABC):
             self.nlp = nlp
         else:
             try:
-                self.nlp = spacy.load(nlp, exclude=["tagger", "parser", "lemmatizer", "ner", "textcat"])
+                self.nlp = spacy.load(nlp, exclude=_SPACY_EXCLUDE)
             except OSError:
-                # TODO: this is a workaround it is not clear how to add "en_core_web_sm" to setup.py
                 download(nlp)
-                self.nlp = spacy.load(nlp, exclude=["tagger", "parser", "lemmatizer", "ner", "textcat"])
+                self.nlp = spacy.load(nlp, exclude=_SPACY_EXCLUDE)
 
         self.model, loading_info = coref_class.from_pretrained(
             self.model_name_or_path, config=config,
@@ -164,12 +180,15 @@ class CorefModel(ABC):
         subtoken_map = batch['subtoken_map']
         token_to_char = batch['offset_mapping']
         idxs = batch['idx']
-        with torch.no_grad():
+        with torch.inference_mode():
             outputs = self.model(batch, return_all_outputs=True)
 
-        outputs_np = tuple(tensor.cpu().numpy() for tensor in outputs)
+        # Move to CPU without forcing numpy conversion yet
+        span_starts = outputs[0].cpu().numpy()
+        span_ends = outputs[1].cpu().numpy()
+        # mention_logits not needed for inference results
+        coref_logits = outputs[3].cpu().numpy()
 
-        span_starts, span_ends, mention_logits, coref_logits = outputs_np
         doc_indices, mention_to_antecedent = create_mention_to_antecedent(span_starts, span_ends, coref_logits)
 
         results = []

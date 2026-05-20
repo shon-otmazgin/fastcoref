@@ -83,20 +83,39 @@ class DynamicBatchSampler:
 
     def __iter__(self):
         batch = []
-        per_example_batch_len = 0
         for example in self.dataset:
             if self.max_doc_len is not None and example['length'] > self.max_doc_len:
                 logger.info(f'Skipping doc with len {example["length"]}. max_doc_len is {self.max_doc_len}')
                 continue
-            if not batch:
-                per_example_batch_len = self.calc_effective_per_example_batch_len(example['length'])
-            elif (len(batch) + 1) * per_example_batch_len > self.max_tokens:
+
+            # Always use the current (longest) example's effective length since dataset is sorted ascending.
+            # Every example in the batch will be padded to this length, so this is the true per-example cost.
+            per_example_batch_len = self.calc_effective_per_example_batch_len(example['length'])
+
+            if batch and (len(batch) + 1) * per_example_batch_len > self.max_tokens:
                 yield self.collator(batch)
                 batch = []
-                per_example_batch_len = self.calc_effective_per_example_batch_len(example['length'])
+
             batch.append(example)
+
         if len(batch) > 0:
             yield self.collator(batch)
+
+    def __len__(self):
+        # Compute number of batches without materializing them
+        count = 0
+        batch_size = 0
+        for example in self.dataset:
+            if self.max_doc_len is not None and example['length'] > self.max_doc_len:
+                continue
+            per_example_batch_len = self.calc_effective_per_example_batch_len(example['length'])
+            if batch_size > 0 and (batch_size + 1) * per_example_batch_len > self.max_tokens:
+                count += 1
+                batch_size = 0
+            batch_size += 1
+        if batch_size > 0:
+            count += 1
+        return count
 
     def calc_effective_per_example_batch_len(self, example_len):
         return math.ceil(example_len / self.max_segment_len) * self.max_segment_len

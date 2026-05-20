@@ -29,6 +29,9 @@ _handler = logging.StreamHandler()
 _handler.setFormatter(logging.Formatter('%(asctime)s - %(levelname)s - \t %(message)s', '%m/%d/%Y %H:%M:%S'))
 logger.addHandler(_handler)
 
+# All spacy pipeline components to exclude (we only need the tokenizer)
+_SPACY_EXCLUDE = ["tok2vec", "tagger", "parser", "lemmatizer", "ner", "textcat", "attribute_ruler"]
+
 
 @dataclass
 class TrainingArgs:
@@ -54,6 +57,7 @@ class TrainingArgs:
     max_doc_len: int = None
     max_tokens_in_batch: int = 5000
     device: str = None
+    n_gpu: int = 0
 
 
 def _load_f_coref_model(args):
@@ -98,7 +102,15 @@ class CorefTrainer:
         self.wandb_runner = wandb.run
 
         self._set_device()
-        self.nlp = nlp if isinstance(nlp, Language) else spacy.load("en_core_web_sm", exclude=["tagger", "parser", "lemmatizer", "ner", "textcat"])
+
+        if isinstance(nlp, Language):
+            self.nlp = nlp
+        else:
+            try:
+                self.nlp = spacy.load("en_core_web_sm", exclude=_SPACY_EXCLUDE)
+            except OSError:
+                download("en_core_web_sm")
+                self.nlp = spacy.load("en_core_web_sm", exclude=_SPACY_EXCLUDE)
 
         self.model, self.tokenizer = _load_f_coref_model(self.args)
         self.model.to(self.device)
@@ -140,14 +152,13 @@ class CorefTrainer:
             self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
         else:
             self.device = torch.device(self.args.device)
-        # TODO: this is not true
         self.args.n_gpu = torch.cuda.device_count()
 
     def train(self):
         """ Train the model """
 
-        # we create batches beacuse the sampler is generating batches of sorted docs -> to avoid many pad tokens
-        # so, we need to shuffle the batches somehow.
+        # Collect batches and shuffle for training.
+        # Stream batches into a list to shuffle order, but don't duplicate tensor storage.
         train_batches = coref_dataset.create_batches(self.train_sampler, shuffle=True)
 
         t_total = len(train_batches) * self.args.epochs
@@ -179,8 +190,8 @@ class CorefTrainer:
         scheduler = get_linear_schedule_with_warmup(optimizer, num_warmup_steps=t_total * 0.1,
                                                     num_training_steps=t_total)
 
-        # using mixed precision
-        scaler = torch.cuda.amp.GradScaler()
+        # Modern AMP API
+        scaler = torch.amp.GradScaler('cuda')
 
         # Train!
         logger.info("***** Running training *****")
@@ -205,7 +216,7 @@ class CorefTrainer:
                 self.model.zero_grad()
                 self.model.train()
 
-                with torch.cuda.amp.autocast():
+                with torch.amp.autocast('cuda'):
                     outputs = self.model(batch, gold_clusters=batch['gold_clusters'], return_all_outputs=False)
 
                 loss = outputs[0]  # model outputs are always tuple in transformers (see doc)
@@ -270,7 +281,7 @@ class CorefTrainer:
                 new_token_map = batch['new_token_map']
                 gold_clusters = batch['gold_clusters']
 
-                with torch.no_grad():
+                with torch.inference_mode():
                     outputs = self.model(batch, gold_clusters=gold_clusters, return_all_outputs=True)
 
                 outputs_np = tuple(tensor.cpu().numpy() for tensor in outputs)
