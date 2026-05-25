@@ -38,6 +38,12 @@ for doc in doc_list:
     print(doc._.resolved_text)
     print(doc._.coref_clusters)
 
+input_text = "The social media company BlueBird Inc. just acquired an AI company called DataMind Solutions for $4.7 billion. BlueBird wants to use DataMind's innovative technology to make their social media sites even better and more personalized for users. This deal is making waves in the tech world and could change the way we use social media in the future."
+expected_output = "The social media company BlueBird Inc. just acquired an AI company called DataMind Solutions for $4.7 billion. BlueBird wants to use DataMind's innovative technology to make The social media company BlueBird Inc.'s social media sites even better and more personalized for users. This deal is making waves in the tech world and could change the way we use social media in the future."
+doc = nlp_fcoref(input_text, component_cfg={"fastcoref": {"resolve_text": True}})
+print(f"{doc._.resolved_text=}")
+print(f"{expected_output=}")
+assert doc._.resolved_text == expected_output
 
 # LingMess
 

@@ -108,6 +108,23 @@ class FastCorefResolver:
         for i in range(char_span.start + 1, char_span.end):
             resolved[i] = ""
         return resolved
+    def _coref_candidate_is_nominal(self, doc: Doc, coref: Tuple) -> bool:
+        """
+        This method returns True if the span covered by coref includes a noun, proper noun or pronoun.
+
+        While `self._get_span_noun_indices()` is also identifying nouns, that method is
+        identifying whether candidate spans for replacing other spans are nominal.
+        This method is for determining whether the thing being replaced is also nominal so
+        in this case, pronouns are included.
+
+        :param doc: Doc
+        :param coref: Tuple
+        :return: a boolean value representing whether coref contains a word with a nominal POS tag.
+        """
+        coref_span = doc.char_span(coref[0], coref[1])
+        coref_pos = set([token.pos_ for token in coref_span])
+        valid_coref_pos_tags = {"NOUN", "PRON", "PROP"}
+        return len(coref_pos.intersection(valid_coref_pos_tags)) > 0
 
     def __call__(self, doc: Doc, resolve_text=False) -> Doc:
         """
@@ -126,7 +143,7 @@ class FastCorefResolver:
                 if indices:
                     mention_span, mention = self._get_cluster_head(doc, cluster, indices)
                     for coref in cluster:
-                        if coref != mention and not self._is_containing_other_spans(coref, all_spans):
+                        if coref != mention and self._coref_candidate_is_nominal(doc, coref) and not self._is_containing_other_spans(coref, all_spans):
                             self._core_logic_part(doc, coref, resolved, mention_span)
             doc._.resolved_text = "".join(resolved)
         doc._.coref_clusters = clusters
@@ -147,7 +164,7 @@ class FastCorefResolver:
                             if indices:
                                 mention_span, mention = self._get_cluster_head(doc, cluster, indices)
                                 for coref in cluster:
-                                    if coref != mention and not self._is_containing_other_spans(coref, all_spans):
+                                    if coref != mention and self._coref_candidate_is_nominal(doc, coref) and not self._is_containing_other_spans(coref, all_spans):
                                         self._core_logic_part(doc, coref, resolved, mention_span)
                     doc._.resolved_text = "".join(resolved)
                 doc._.coref_clusters = clusters
